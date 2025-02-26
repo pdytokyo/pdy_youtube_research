@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube リサーチツール</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-center text-red-600">
+                <i class="fab fa-youtube mr-2"></i>YouTube リサーチツール
+            </h1>
+            <p class="text-center text-gray-600 mt-2">YouTubeの動画・チャンネルを効率的に調査</p>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <label for="searchQuery" class="block text-gray-700 font-medium mb-2">検索キーワード</label>
+            <input type="text" id="searchQuery" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="検索キーワードを入力...">
+            
+            <!-- 🔽 アップロード日フィルター -->
+            <label for="uploadDate" class="block text-gray-700 font-medium mt-4">アップロード日</label>
+            <select id="uploadDate" class="w-full px-3 py-2 border rounded-lg">
+                <option value="any">全期間</option>
+                <option value="week">1週間以内</option>
+                <option value="month">1ヶ月以内</option>
+                <option value="quarter">3ヶ月以内</option>
+                <option value="halfYear">半年以内</option>
+                <option value="year">1年以内</option>
+            </select>
+
+            <!-- 🔽 並び順の選択 -->
+            <label for="sortBy" class="block text-gray-700 font-medium mt-4">並び順</label>
+            <select id="sortBy" class="w-full px-3 py-2 border rounded-lg">
+                <option value="relevance">関連性順</option>
+                <option value="viewCount">再生回数順</option>
+                <option value="rating">高評価順</option>
+            </select>
+
+            <!-- 🔽 ショート or ロングの選択 -->
+            <label for="videoType" class="block text-gray-700 font-medium mt-4">動画の種類</label>
+            <select id="videoType" class="w-full px-3 py-2 border rounded-lg">
+                <option value="any">すべての動画</option>
+                <option value="short">ショート動画（1分未満）</option>
+                <option value="long">ロング動画（1分以上）</option>
+            </select>
+
+            <!-- 🔽 エンゲージメントフィルターのチェックボックス -->
+            <div class="mt-4">
+                <input type="checkbox" id="engagementFilter" class="mr-2">
+                <label for="engagementFilter" class="text-gray-700">再生数が登録者数の1.5倍以上の動画のみ表示</label>
+            </div>
+
+            <div class="text-center mt-4">
+                <button id="searchButton" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                    <i class="fas fa-search mr-2"></i>検索
+                </button>
+            </div>
+        </div>
+
+        <div id="resultsArea" class="hidden">
+            <h2 class="text-2xl font-bold mb-4">検索結果</h2>
+            <div id="results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 検索結果がここに追加される -->
+            </div>
+        </div>
+
+        <!-- 🔽 検索結果をエクスポート -->
+        <div class="mt-4 text-center">
+            <button id="exportButton" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                検索結果をエクスポート
+            </button>
+        </div>
+    </div>
+
+    <!-- ✅ `script.js` を読み込む -->
+    <script src="script.js"></script>
+</body>
+</html>
