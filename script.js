@@ -5,13 +5,11 @@
 
 console.log("✅ script.js が正常に読み込まれました！");
 
-// ✅ YouTube API キー（🔴 ここに実際のAPIキーを入れる）
-const API_KEY = "AIzaSyBP62VpqSCqz8MvCW_SkEIwV8B3QmTOuyk"; // 実際のAPIキーに変更してください
-
-// ✅ Google Apps Script のデプロイURL
+// Google Apps Script のデプロイURL
 const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt8hOMKsvlm79dWGYbLYH0thLHddtrYYuuDgqZb_Rcgm5OMt0tVd1KOOgc-SlARP6t/exec";
 
-// ✅ UI要素の取得
+// UI要素の取得
+const apiKeyInput = document.getElementById("apiKey");
 const searchButton = document.getElementById("searchButton");
 const searchQuery = document.getElementById("searchQuery");
 const uploadDate = document.getElementById("uploadDate");
@@ -25,12 +23,32 @@ const resultsArea = document.getElementById("resultsArea");
 let nextPageToken = "";
 let allVideos = []; // 検索結果を保存する配列
 
-// ✅ 検索ボタンのクリックイベント
+// APIキーの管理
+let API_KEY = ""; // 初期値は空
+
+// ローカルストレージからAPIキーを取得
+if (localStorage.getItem("youtube_api_key")) {
+    apiKeyInput.value = localStorage.getItem("youtube_api_key");
+    API_KEY = apiKeyInput.value;
+}
+
+// APIキー入力時の処理
+apiKeyInput.addEventListener("change", function() {
+    API_KEY = apiKeyInput.value.trim();
+    localStorage.setItem("youtube_api_key", API_KEY);
+});
+
+// 検索ボタンのクリックイベント
 searchButton.addEventListener("click", function () {
     console.log("🔍 検索ボタンがクリックされました");
 
     if (!searchQuery.value.trim()) {
         alert("検索キーワードを入力してください");
+        return;
+    }
+    
+    if (!API_KEY) {
+        alert("YouTube Data APIキーを入力してください");
         return;
     }
     
@@ -44,7 +62,7 @@ searchButton.addEventListener("click", function () {
     performSearch();
 });
 
-// ✅ YouTube API を使って検索
+// YouTube API を使って検索
 function performSearch(isLoadMore = false) {
     console.log("📡 YouTube API へのリクエスト開始...");
     
@@ -211,7 +229,7 @@ function processVideoData(videos, channels) {
     return processedVideos;
 }
 
-// ✅ 検索結果を画面に表示
+// 検索結果を画面に表示
 function displayResults(videos) {
     if (!videos || videos.length === 0) {
         if (results.innerHTML === "") {
@@ -260,7 +278,7 @@ function displayResults(videos) {
     });
 }
 
-// ✅ 検索結果を Google スプレッドシートに送信（エクスポート時のみ）
+// 検索結果を Google スプレッドシートに送信（エクスポート時のみ）
 exportButton.addEventListener("click", function () {
     console.log("📥 検索結果を Google スプレッドシートに送信...");
 
