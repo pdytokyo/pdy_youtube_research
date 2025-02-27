@@ -5,11 +5,14 @@
 
 console.log("✅ script.js が正常に読み込まれました！");
 
-// Google Apps Script のデプロイURL
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyt8hOMKsvlm79dWGYbLYH0thLHddtrYYuuDgqZb_Rcgm5OMt0tVd1KOOgc-SlARP6t/exec";
+// デフォルトのGoogle Apps Script URL
+const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbyt8hOMKsvlm79dWGYbLYH0thLHddtrYYuuDgqZb_Rcgm5OMt0tVd1KOOgc-SlARP6t/exec";
 
 // UI要素の取得
 const apiKeyInput = document.getElementById("apiKey");
+const spreadsheetIdInput = document.getElementById("spreadsheetId");
+const gasUrlInput = document.getElementById("gasUrl");
+const saveSettingsButton = document.getElementById("saveSettings");
 const searchButton = document.getElementById("searchButton");
 const searchQuery = document.getElementById("searchQuery");
 const uploadDate = document.getElementById("uploadDate");
@@ -36,6 +39,25 @@ if (localStorage.getItem("youtube_api_key")) {
 apiKeyInput.addEventListener("change", function() {
     API_KEY = apiKeyInput.value.trim();
     localStorage.setItem("youtube_api_key", API_KEY);
+});
+
+// スプレッドシート関連の設定
+let SPREADSHEET_ID = localStorage.getItem("spreadsheet_id") || "";
+let GAS_URL = localStorage.getItem("gas_url") || DEFAULT_GAS_URL;
+
+// 保存された設定を表示
+spreadsheetIdInput.value = SPREADSHEET_ID;
+gasUrlInput.value = GAS_URL;
+
+// 設定保存ボタンのイベント
+saveSettingsButton.addEventListener("click", function() {
+    SPREADSHEET_ID = spreadsheetIdInput.value.trim();
+    GAS_URL = gasUrlInput.value.trim() || DEFAULT_GAS_URL;
+    
+    localStorage.setItem("spreadsheet_id", SPREADSHEET_ID);
+    localStorage.setItem("gas_url", GAS_URL);
+    
+    alert("設定を保存しました");
 });
 
 // 検索ボタンのクリックイベント
@@ -183,10 +205,11 @@ function processVideoData(videos, channels) {
         const durationInSec = parseDuration(duration);
         
         // 短い動画か長い動画かをフィルタリング
-        if (videoType.value === "short" && durationInSec >= 60) {
+        // 60秒以下をショート動画とする
+        if (videoType.value === "short" && durationInSec > 60) {
             return;
         }
-        if (videoType.value === "long" && durationInSec < 60) {
+        if (videoType.value === "long" && durationInSec <= 60) {
             return;
         }
         
@@ -304,17 +327,25 @@ exportButton.addEventListener("click", function () {
     exportButton.disabled = true;
     exportButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>送信中...';
 
+    // スプレッドシートIDを追加
+    const requestData = { 
+        searchQuery: searchQuery.value.trim(),
+        videos: exportData
+    };
+    
+    // スプレッドシートIDが指定されている場合は追加
+    if (SPREADSHEET_ID) {
+        requestData.spreadsheetId = SPREADSHEET_ID;
+    }
+
     // GASにデータを送信 - CORS回避のためにno-corsモードを使用
-    fetch(GOOGLE_SCRIPT_URL, {
+    fetch(GAS_URL, {
         method: "POST",
         headers: { 
             "Content-Type": "application/json"
         },
         mode: "no-cors", // CORSエラーを回避するためにno-corsモードを使用
-        body: JSON.stringify({ 
-            searchQuery: searchQuery.value.trim(),
-            videos: exportData
-        })
+        body: JSON.stringify(requestData)
     })
     .then(response => {
         // no-corsモードではレスポンスの内容にアクセスできないため、
