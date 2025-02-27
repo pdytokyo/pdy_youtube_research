@@ -6,6 +6,7 @@
     <title>YouTube リサーチツール</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="icon" type="image/png" href="https://www.youtube.com/favicon.ico">
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8">
@@ -26,6 +27,30 @@
             </p>
         </div>
 
+        <!-- エクスポート設定 -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <h2 class="text-xl font-bold mb-4">エクスポート設定</h2>
+            
+            <div class="mb-4">
+                <label for="spreadsheetId" class="block text-gray-700 font-medium mb-2">Google スプレッドシート ID (必須)</label>
+                <input type="text" id="spreadsheetId" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="例: 1xQWmEb0pvhVs0F4_etWRTyudHWo9rA_K5bKbqvd9xik">
+                <p class="text-sm text-gray-500 mt-2">スプレッドシートのURLから ID を取得: https://docs.google.com/spreadsheets/d/[ここがID]/edit</p>
+            </div>
+            
+            <div class="mb-4">
+                <label for="gasUrl" class="block text-gray-700 font-medium mb-2">Google Apps Script URL</label>
+                <input type="text" id="gasUrl" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Google Apps ScriptのデプロイURL">
+                <p class="text-sm text-gray-500 mt-2">自分で作成したGoogle Apps ScriptのURLを入力</p>
+            </div>
+            
+            <div class="text-center">
+                <button id="saveSettings" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                    設定を保存
+                </button>
+            </div>
+        </div>
+
+        <!-- 検索フォーム -->
         <div class="bg-white rounded-lg shadow-md p-6 mb-8">
             <label for="searchQuery" class="block text-gray-700 font-medium mb-2">検索キーワード</label>
             <input type="text" id="searchQuery" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="検索キーワードを入力...">
@@ -53,8 +78,8 @@
             <label for="videoType" class="block text-gray-700 font-medium mt-4">動画の種類</label>
             <select id="videoType" class="w-full px-3 py-2 border rounded-lg">
                 <option value="any">すべての動画</option>
-                <option value="short">ショート動画（1分未満）</option>
-                <option value="long">ロング動画（1分以上）</option>
+                <option value="short">ショート動画（1分以下）</option>
+                <option value="long">ロング動画（1分超）</option>
             </select>
 
             <!-- エンゲージメントフィルターのチェックボックス -->
