@@ -46,19 +46,21 @@ let SPREADSHEET_ID = localStorage.getItem("spreadsheet_id") || "";
 let GAS_URL = localStorage.getItem("gas_url") || DEFAULT_GAS_URL;
 
 // 保存された設定を表示
-spreadsheetIdInput.value = SPREADSHEET_ID;
-gasUrlInput.value = GAS_URL;
+if (spreadsheetIdInput) spreadsheetIdInput.value = SPREADSHEET_ID;
+if (gasUrlInput) gasUrlInput.value = GAS_URL;
 
 // 設定保存ボタンのイベント
-saveSettingsButton.addEventListener("click", function() {
-    SPREADSHEET_ID = spreadsheetIdInput.value.trim();
-    GAS_URL = gasUrlInput.value.trim() || DEFAULT_GAS_URL;
-    
-    localStorage.setItem("spreadsheet_id", SPREADSHEET_ID);
-    localStorage.setItem("gas_url", GAS_URL);
-    
-    alert("設定を保存しました");
-});
+if (saveSettingsButton) {
+    saveSettingsButton.addEventListener("click", function() {
+        SPREADSHEET_ID = spreadsheetIdInput.value.trim();
+        GAS_URL = gasUrlInput.value.trim() || DEFAULT_GAS_URL;
+        
+        localStorage.setItem("spreadsheet_id", SPREADSHEET_ID);
+        localStorage.setItem("gas_url", GAS_URL);
+        
+        alert("設定を保存しました");
+    });
+}
 
 // 検索ボタンのクリックイベント
 searchButton.addEventListener("click", function () {
@@ -310,6 +312,12 @@ exportButton.addEventListener("click", function () {
         return;
     }
     
+    // スプレッドシートIDのチェック
+    if (!SPREADSHEET_ID) {
+        alert("スプレッドシートIDが設定されていません。エクスポート設定でスプレッドシートIDを入力してください。");
+        return;
+    }
+    
     // エクスポート用のデータを作成
     const exportData = allVideos.map(video => ({
         title: video.title,
@@ -327,16 +335,12 @@ exportButton.addEventListener("click", function () {
     exportButton.disabled = true;
     exportButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>送信中...';
 
-    // スプレッドシートIDを追加
+    // リクエストデータを作成
     const requestData = { 
         searchQuery: searchQuery.value.trim(),
-        videos: exportData
+        videos: exportData,
+        spreadsheetId: SPREADSHEET_ID
     };
-    
-    // スプレッドシートIDが指定されている場合は追加
-    if (SPREADSHEET_ID) {
-        requestData.spreadsheetId = SPREADSHEET_ID;
-    }
 
     // GASにデータを送信 - CORS回避のためにno-corsモードを使用
     fetch(GAS_URL, {
