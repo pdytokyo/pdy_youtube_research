@@ -6,7 +6,6 @@
     <title>YouTube リサーチツール</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="icon" type="image/png" href="https://www.youtube.com/favicon.ico">
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="container mx-auto px-4 py-8">
@@ -17,45 +16,161 @@
             <p class="text-center text-gray-600 mt-2">YouTubeの動画・チャンネルを効率的に調査</p>
         </header>
 
-        <!-- APIキー入力フォーム -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-bold mb-4">YouTube API設定</h2>
-            <label for="apiKey" class="block text-gray-700 font-medium mb-2">YouTube Data API キー</label>
-            <input type="text" id="apiKey" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="あなたのAPIキーを入力...">
-            <p class="text-sm text-gray-500 mt-2">
-                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-600 hover:underline">Google Cloud Consoleで取得</a>
-            </p>
+        <!-- セットアップセクション -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8" id="setupSection">
+            <h3 class="text-xl font-bold mb-4">📝 初期セットアップ</h3>
+            
+            <!-- ステップナビゲーション -->
+            <div class="mb-6">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="text-sm">
+                        <span id="currentStep">1</span> / <span>3</span>
+                    </div>
+                    <div class="text-sm text-blue-600" id="stepTitle">スプレッドシートを準備</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full" id="stepProgress" style="width: 33%"></div>
+                </div>
+            </div>
+            
+            <!-- ステップ1: スプレッドシート準備 -->
+            <div id="step1" class="step-content">
+                <h4 class="font-bold text-lg mb-3">Step 1: スプレッドシートを準備</h4>
+                <p class="mb-4">まず、データを保存するためのGoogleスプレッドシートを準備します：</p>
+                
+                <ol class="list-decimal ml-5 mb-4 space-y-2">
+                    <li><a href="https://sheets.new" target="_blank" class="text-blue-600 hover:underline">新しいGoogleスプレッドシート</a>を開く</li>
+                    <li>任意の名前を付ける (例: 「YouTube分析データ」)</li>
+                    <li>スプレッドシートURLからIDをコピー
+                        <div class="bg-gray-100 p-2 rounded mt-1 text-xs">
+                            https://docs.google.com/spreadsheets/d/<mark class="bg-yellow-200 px-1">このIDの部分</mark>/edit
+                        </div>
+                    </li>
+                    <li>以下にスプレッドシートIDを入力：</li>
+                </ol>
+                
+                <div class="mb-4">
+                    <input type="text" id="sheetId" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                          placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms">
+                </div>
+                
+                <div class="flex justify-end mt-4">
+                    <button id="nextToStep2" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                        次へ <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- ステップ2: GAS作成 -->
+            <div id="step2" class="step-content hidden">
+                <h4 class="font-bold text-lg mb-3">Step 2: Google Apps Scriptを設定</h4>
+                <p class="mb-4">次に、データをスプレッドシートに保存するためのGoogle Apps Scriptを作成します：</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <div class="space-y-2">
+                            <a href="https://script.google.com/home/start" target="_blank" class="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors mb-2">
+                                <i class="fas fa-external-link-alt mr-2"></i>Google Apps Script を開く
+                            </a>
+                            <ol class="list-decimal ml-5 space-y-2 text-sm">
+                                <li>「新しいプロジェクト」をクリック</li>
+                                <li>デフォルトのコードをすべて削除</li>
+                                <li>下の「コードをコピー」ボタンをクリック</li>
+                                <li>コピーしたコードをエディタに貼り付け</li>
+                                <li>ファイル名を「コード.gs」に変更</li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="bg-gray-100 p-3 rounded-lg text-sm relative">
+                            <div class="overflow-y-auto h-40 mb-2">
+                                <pre class="text-xs"><code id="gasCodePreview">// コードがここに表示されます...</code></pre>
+                            </div>
+                            <button id="copyGASButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                                <i class="fas fa-copy mr-2"></i>コードをコピー
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                    <p class="text-sm"><i class="fas fa-lightbulb text-yellow-500 mr-2"></i>コードをコピーしたら、Google Apps Scriptエディタに貼り付けてください。</p>
+                </div>
+                
+                <div class="flex justify-between mt-4">
+                    <button id="backToStep1" class="text-gray-600 hover:text-gray-800">
+                        <i class="fas fa-chevron-left mr-1"></i> 戻る
+                    </button>
+                    <button id="nextToStep3" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                        次へ <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- ステップ3: デプロイ -->
+            <div id="step3" class="step-content hidden">
+                <h4 class="font-bold text-lg mb-3">Step 3: スクリプトをデプロイ</h4>
+                <p class="mb-4">最後に、スクリプトをウェブアプリとしてデプロイします：</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <div>
+                        <ol class="list-decimal ml-5 space-y-3 text-sm">
+                            <li>
+                                <div>Google Apps Scriptエディタで、</div>
+                                <div class="flex items-center mt-1">
+                                    <span class="px-2 py-1 bg-blue-100 rounded text-xs mr-1">デプロイ</span> →
+                                    <span class="px-2 py-1 bg-blue-100 rounded text-xs mx-1">新しいデプロイ</span>
+                                </div>
+                            </li>
+                            <li>
+                                <div>「種類の選択」で</div>
+                                <div class="px-2 py-1 bg-blue-100 rounded text-xs mt-1">ウェブアプリ</div>
+                                <div>を選択</div>
+                            </li>
+                            <li>
+                                <div>以下のように設定：</div>
+                                <div class="ml-2 mt-1">
+                                    <div>- 説明：「YouTube リサーチツール」</div>
+                                    <div>- 次のユーザーとして実行：「自分」</div>
+                                    <div>- アクセスできるユーザー：「全員」</div>
+                                </div>
+                            </li>
+                            <li>「デプロイ」ボタンをクリック</li>
+                            <li>アクセス権の承認を行う</li>
+                            <li>表示されたウェブアプリのURLをコピー</li>
+                        </ol>
+                    </div>
+                    <div>
+                        <div class="bg-gray-100 p-4 rounded-lg">
+                            <img src="https://i.imgur.com/uVIQYO3.png" alt="デプロイイメージ" class="rounded border border-gray-300 mb-3">
+                            <p class="text-xs text-gray-600 mb-3">デプロイ後に表示されるURLをコピーしてください</p>
+                            <input type="text" id="scriptUrl" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                  placeholder="https://script.google.com/macros/s/...">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+                    <p class="text-sm"><i class="fas fa-info-circle text-blue-500 mr-2"></i>初回実行時には「安全ではないアプリ」という警告が表示されることがあります。その場合は「詳細」→「（安全ではないページ）に移動」を選択してください。</p>
+                </div>
+                
+                <div class="flex justify-between mt-4">
+                    <button id="backToStep2" class="text-gray-600 hover:text-gray-800">
+                        <i class="fas fa-chevron-left mr-1"></i> 戻る
+                    </button>
+                    <button id="saveSettingsButton" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                        <i class="fas fa-save mr-2"></i>設定を保存して完了
+                    </button>
+                </div>
+            </div>
         </div>
 
-        <!-- エクスポート設定 -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 class="text-xl font-bold mb-4">エクスポート設定</h2>
-            
-            <div class="mb-4">
-                <label for="spreadsheetId" class="block text-gray-700 font-medium mb-2">Google スプレッドシート ID (必須)</label>
-                <input type="text" id="spreadsheetId" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="例: 1xQWmEb0pvhVs0F4_etWRTyudHWo9rA_K5bKbqvd9xik">
-                <p class="text-sm text-gray-500 mt-2">スプレッドシートのURLから ID を取得: https://docs.google.com/spreadsheets/d/[ここがID]/edit</p>
-            </div>
-            
-            <div class="mb-4">
-                <label for="gasUrl" class="block text-gray-700 font-medium mb-2">Google Apps Script URL</label>
-                <input type="text" id="gasUrl" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="Google Apps ScriptのデプロイURL">
-                <p class="text-sm text-gray-500 mt-2">自分で作成したGoogle Apps ScriptのURLを入力</p>
-            </div>
-            
-            <div class="text-center">
-                <button id="saveSettings" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
-                    設定を保存
-                </button>
-            </div>
-        </div>
-
-        <!-- 検索フォーム -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <!-- 検索セクション -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8" id="searchSection">
             <label for="searchQuery" class="block text-gray-700 font-medium mb-2">検索キーワード</label>
             <input type="text" id="searchQuery" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500" placeholder="検索キーワードを入力...">
             
-            <!-- アップロード日フィルター -->
+            <!-- 🔽 アップロード日フィルター -->
             <label for="uploadDate" class="block text-gray-700 font-medium mt-4">アップロード日</label>
             <select id="uploadDate" class="w-full px-3 py-2 border rounded-lg">
                 <option value="any">全期間</option>
@@ -66,7 +181,7 @@
                 <option value="year">1年以内</option>
             </select>
 
-            <!-- 並び順の選択 -->
+            <!-- 🔽 並び順の選択 -->
             <label for="sortBy" class="block text-gray-700 font-medium mt-4">並び順</label>
             <select id="sortBy" class="w-full px-3 py-2 border rounded-lg">
                 <option value="relevance">関連性順</option>
@@ -74,15 +189,15 @@
                 <option value="rating">高評価順</option>
             </select>
 
-            <!-- ショート or ロングの選択 -->
+            <!-- 🔽 ショート or ロングの選択 -->
             <label for="videoType" class="block text-gray-700 font-medium mt-4">動画の種類</label>
             <select id="videoType" class="w-full px-3 py-2 border rounded-lg">
                 <option value="any">すべての動画</option>
-                <option value="short">ショート動画（1分以下）</option>
-                <option value="long">ロング動画（1分超）</option>
+                <option value="short">ショート動画（1分未満）</option>
+                <option value="long">ロング動画（1分以上）</option>
             </select>
 
-            <!-- エンゲージメントフィルターのチェックボックス -->
+            <!-- 🔽 エンゲージメントフィルターのチェックボックス -->
             <div class="mt-4">
                 <input type="checkbox" id="engagementFilter" class="mr-2">
                 <label for="engagementFilter" class="text-gray-700">再生数が登録者数の1.5倍以上の動画のみ表示</label>
@@ -95,22 +210,54 @@
             </div>
         </div>
 
+        <!-- 検索結果 -->
         <div id="resultsArea" class="hidden">
-            <h2 class="text-2xl font-bold mb-4">検索結果</h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">検索結果</h2>
+                <button id="exportButton" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                    <i class="fas fa-file-export mr-2"></i>スプレッドシートに保存
+                </button>
+            </div>
             <div id="results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- 検索結果がここに追加される -->
             </div>
         </div>
 
-        <!-- 検索結果をエクスポート -->
-        <div class="mt-4 text-center">
-            <button id="exportButton" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
-                検索結果をエクスポート
+        <!-- 設定情報 -->
+        <div class="mt-8 text-center text-gray-600 text-sm">
+            <button id="showSettingsButton" class="text-blue-600 hover:text-blue-800">
+                <i class="fas fa-cog mr-1"></i>設定を変更
             </button>
         </div>
     </div>
 
-    <!-- script.js を読み込む -->
+    <!-- ワンクリックデプロイボタン用のモーダル -->
+    <div id="oneClickDeployModal" class="fixed inset-0 flex items-center justify-center hidden bg-black bg-opacity-50 z-50">
+        <div class="bg-white rounded-lg p-6 max-w-lg w-full max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">ワンクリックデプロイ</h3>
+                <button class="closeModal text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <p class="mb-3">以下のリンクをクリックすると、Google Apps Script エディタが新しいタブで開きます。コードは自動的にコピーされています。</p>
+                <ol class="list-decimal ml-5 space-y-2 text-sm">
+                    <li>開いたエディタに自動コピーされたコードを貼り付け</li>
+                    <li>「デプロイ」→「新しいデプロイ」をクリック</li>
+                    <li>手順に従ってデプロイ</li>
+                    <li>生成されたURLをこのページにコピー</li>
+                </ol>
+            </div>
+            <div class="text-center">
+                <a id="openScriptEditorBtn" href="https://script.google.com/home/start" target="_blank" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors">
+                    <i class="fas fa-external-link-alt mr-2"></i>GASエディタを開く
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ `script.js` を読み込む -->
     <script src="script.js"></script>
 </body>
 </html>
