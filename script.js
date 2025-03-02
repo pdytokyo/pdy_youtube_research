@@ -41,15 +41,19 @@ const backToStep2 = document.getElementById("backToStep2") || {};
 // Google Apps Scriptのコード
 const GAS_CODE = `/**
  * YouTube リサーチツール用 Google Apps Script
- * デプロイ後、URLをHTMLファイルに設定してください
  */
+
+// テスト用のGET関数
+function doGet() {
+  return ContentService.createTextOutput("The script is working. Use POST requests.");
+}
 
 // HTTPリクエストを処理する関数
 function doPost(e) {
   try {
     // POSTデータをパース
     const data = JSON.parse(e.postData.contents);
-    const sheetId = data.sheetId; // フロントエンドから送信されたスプレッドシートID
+    const sheetId = data.sheetId;
     const searchQuery = data.searchQuery;
     const videos = data.videos;
     
@@ -297,6 +301,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // エクスポート中の表示
             exportButton.disabled = true;
             exportButton.innerHTML = '<div class="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>送信中...';
+
+            // デバッグ: 送信するデータをコンソールに表示
+            console.log('送信するデータ:', {
+                url: GOOGLE_SCRIPT_URL,
+                sheetId: savedSheetId,
+                videosCount: exportData.length
+            });
 
             // GASにデータを送信 - CORS回避のためにno-corsモードを使用
             fetch(GOOGLE_SCRIPT_URL, {
@@ -720,4 +731,33 @@ function formatDuration(duration) {
     const seconds = parseDuration(duration);
     
     if (seconds < 60) {
-        return `0:${seconds.toString().
+        return `0:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes < 60) {
+        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+    
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function formatNumber(num) {
+    if (num >= 1000000) {
+        return (num / 1000000).toFixed(1) + 'M';
+    } else if (num >= 1000) {
+        return (num / 1000).toFixed(1) + 'K';
+    } else {
+        return num.toString();
+    }
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ja-JP');
+}
