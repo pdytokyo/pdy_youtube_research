@@ -5,9 +5,6 @@
 
 console.log("✅ script.js が正常に読み込まれました！");
 
-// ✅ YouTube API キー（🔴 ここに実際のAPIキーを入れる）
-const API_KEY = "AIzaSyBP62VpqSCqz8MvCW_SkEIwV8B3QmTOuyk"; // 実際のAPIキーに変更してください
-
 // ✅ UI要素の取得（nullチェック用に || {}を追加）
 const searchButton = document.getElementById("searchButton") || {};
 const searchQuery = document.getElementById("searchQuery") || {};
@@ -27,6 +24,7 @@ const copyGASButton = document.getElementById("copyGASButton") || {};
 const gasCodePreview = document.getElementById("gasCodePreview") || {};
 const openScriptEditorBtn = document.getElementById("openScriptEditorBtn") || {};
 const oneClickDeployModal = document.getElementById("oneClickDeployModal") || {};
+const apiKeyInput = document.getElementById("apiKey") || {};
 
 // ステップナビゲーション要素（nullチェック用に || {}を追加）
 const currentStep = document.getElementById("currentStep") || {};
@@ -356,12 +354,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            if (!apiKeyInput || !apiKeyInput.value) {
+                alert('YouTube Data API キーを入力してください');
+                if (apiKeyInput) apiKeyInput.focus();
+                return;
+            }
+            
             const scriptUrlValue = scriptUrl.value.trim();
             const sheetIdValue = sheetId.value.trim();
+            const apiKeyValue = apiKeyInput.value.trim();
             
             // ローカルストレージに保存
             localStorage.setItem('youtubeResearchScriptUrl', scriptUrlValue);
             localStorage.setItem('youtubeResearchSheetId', sheetIdValue);
+            localStorage.setItem('youtubeResearchApiKey', apiKeyValue);
             GOOGLE_SCRIPT_URL = scriptUrlValue;
             
             alert('設定を保存しました！これでツールを使用できます。');
@@ -408,12 +414,28 @@ function validateStep1() {
         if (sheetId) sheetId.focus();
         return false;
     }
+    
+    if (!apiKeyInput || !apiKeyInput.value) {
+        alert('YouTube Data API キーを入力してください');
+        if (apiKeyInput) apiKeyInput.focus();
+        return false;
+    }
+    
     const sheetIdValue = sheetId.value.trim();
+    const apiKeyValue = apiKeyInput.value.trim();
+    
     if (!sheetIdValue) {
         alert('スプレッドシートIDを入力してください');
         sheetId.focus();
         return false;
     }
+    
+    if (!apiKeyValue) {
+        alert('YouTube Data API キーを入力してください');
+        apiKeyInput.focus();
+        return false;
+    }
+    
     return true;
 }
 
@@ -421,6 +443,7 @@ function validateStep1() {
 function loadSettings() {
     const savedScriptUrl = localStorage.getItem('youtubeResearchScriptUrl');
     const savedSheetId = localStorage.getItem('youtubeResearchSheetId');
+    const savedApiKey = localStorage.getItem('youtubeResearchApiKey');
     
     if (savedScriptUrl) {
         if (scriptUrl) scriptUrl.value = savedScriptUrl;
@@ -430,12 +453,17 @@ function loadSettings() {
     if (savedSheetId && sheetId) {
         sheetId.value = savedSheetId;
     }
+    
+    if (savedApiKey && apiKeyInput) {
+        apiKeyInput.value = savedApiKey;
+    }
 }
 
 // ✅ 設定が有効かチェック
 function hasValidSettings() {
     return localStorage.getItem('youtubeResearchScriptUrl') && 
-           localStorage.getItem('youtubeResearchSheetId');
+           localStorage.getItem('youtubeResearchSheetId') &&
+           localStorage.getItem('youtubeResearchApiKey');
 }
 
 // ✅ YouTube API を使って検索
@@ -447,9 +475,20 @@ function performSearch(isLoadMore = false) {
         results.innerHTML = '<div class="col-span-full text-center"><div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div><p class="mt-2">検索中...</p></div>';
     }
 
+    // APIキーを取得
+    const apiKey = localStorage.getItem('youtubeResearchApiKey');
+    if (!apiKey) {
+        alert('YouTube Data API キーが設定されていません。設定画面から入力してください。');
+        if (setupSection && setupSection.classList) {
+            setupSection.classList.remove('hidden');
+        }
+        showStep(1);
+        return;
+    }
+
     // 基本的なクエリパラメータを設定
     let query = encodeURIComponent(searchQuery.value);
-    let apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q=${query}&type=video&key=${API_KEY}`;
+    let apiUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=50&q=${query}&type=video&key=${apiKey}`;
     
     // 並び順を追加
     if (sortBy && sortBy.value) {
@@ -512,7 +551,7 @@ function performSearch(isLoadMore = false) {
             const videoIds = data.items.map(item => item.id.videoId).join(',');
             
             // 動画の詳細情報を取得
-            return fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${API_KEY}`)
+            return fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics,contentDetails&id=${videoIds}&key=${apiKey}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`動画詳細取得エラー: ${response.status}`);
@@ -524,7 +563,7 @@ function performSearch(isLoadMore = false) {
                     const channelIds = [...new Set(videoDetails.items.map(item => item.snippet.channelId))];
                     
                     // チャンネル情報を取得
-                    return fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds.join(',')}&key=${API_KEY}`)
+                    return fetch(`https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds.join(',')}&key=${apiKey}`)
                         .then(response => {
                             if (!response.ok) {
                                 throw new Error(`チャンネル情報取得エラー: ${response.status}`);
