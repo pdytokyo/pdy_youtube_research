@@ -344,19 +344,19 @@ document.addEventListener('DOMContentLoaded', function() {
         saveSettingsButton.addEventListener('click', function() {
             if (!scriptUrl || !scriptUrl.value) {
                 alert('スクリプトURLを入力してください');
-                if (scriptUrl) scriptUrl.focus();
+                if (scriptUrl && scriptUrl.focus) scriptUrl.focus();
                 return;
             }
             
             if (!sheetId || !sheetId.value) {
                 alert('スプレッドシートIDを入力してください');
-                if (sheetId) sheetId.focus();
+                if (sheetId && sheetId.focus) sheetId.focus();
                 return;
             }
             
             if (!apiKeyInput || !apiKeyInput.value) {
                 alert('YouTube Data API キーを入力してください');
-                if (apiKeyInput) apiKeyInput.focus();
+                if (apiKeyInput && apiKeyInput.focus) apiKeyInput.focus();
                 return;
             }
             
@@ -411,13 +411,13 @@ function showStep(stepNumber) {
 function validateStep1() {
     if (!sheetId || !sheetId.value) {
         alert('スプレッドシートIDを入力してください');
-        if (sheetId) sheetId.focus();
+        if (sheetId && sheetId.focus) sheetId.focus();
         return false;
     }
     
     if (!apiKeyInput || !apiKeyInput.value) {
         alert('YouTube Data API キーを入力してください');
-        if (apiKeyInput) apiKeyInput.focus();
+        if (apiKeyInput && apiKeyInput.focus) apiKeyInput.focus();
         return false;
     }
     
@@ -426,13 +426,13 @@ function validateStep1() {
     
     if (!sheetIdValue) {
         alert('スプレッドシートIDを入力してください');
-        sheetId.focus();
+        if (sheetId && sheetId.focus) sheetId.focus();
         return false;
     }
     
     if (!apiKeyValue) {
         alert('YouTube Data API キーを入力してください');
-        apiKeyInput.focus();
+        if (apiKeyInput && apiKeyInput.focus) apiKeyInput.focus();
         return false;
     }
     
@@ -720,33 +720,4 @@ function formatDuration(duration) {
     const seconds = parseDuration(duration);
     
     if (seconds < 60) {
-        return `0:${seconds.toString().padStart(2, '0')}`;
-    }
-    
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    
-    if (minutes < 60) {
-        return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    
-    return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
-
-function formatNumber(num) {
-    if (num >= 1000000) {
-        return (num / 1000000).toFixed(1) + 'M';
-    } else if (num >= 1000) {
-        return (num / 1000).toFixed(1) + 'K';
-    } else {
-        return num.toString();
-    }
-}
-
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('ja-JP');
-}
+        return `0:${seconds.toString().
