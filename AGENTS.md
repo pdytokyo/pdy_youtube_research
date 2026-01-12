@@ -35,20 +35,33 @@ python -m src.cli benchmark --input-file videos.txt
 
 ### Script Abstraction (PR3)
 ```bash
-python -m src.cli script --input transcript.txt --output script.json
+# Generate abstracted script from transcript file
+python -m src.cli script --input transcript.txt
+
+# With custom output path
+python -m src.cli script --input transcript.txt --output my_script
+
+# Output to specific directory
+python -m src.cli --output-dir results script --input transcript.txt
 ```
 
 ## Test
 
 ```bash
-# Run all smoke tests (no API key required)
+# Run all tests (no API key required)
+python -m pytest tests/ -v
+
+# Run smoke tests only
 python -m pytest tests/test_smoke.py -v
 
-# Run specific test class
-python -m pytest tests/test_smoke.py::TestUtils -v
+# Run benchmark tests only
+python -m pytest tests/test_benchmark.py -v
+
+# Run script abstraction tests only
+python -m pytest tests/test_script.py -v
 
 # Run with coverage (if pytest-cov installed)
-python -m pytest tests/test_smoke.py --cov=src
+python -m pytest tests/ --cov=src
 ```
 
 ## Lint (optional)
@@ -66,17 +79,21 @@ flake8 src/ tests/
 ```
 pdy_youtube_research/
 ├── src/
-│   ├── __init__.py      # Package init
-│   ├── cli.py           # CLI entry point
-│   ├── youtube_api.py   # YouTube API client & adapters
-│   ├── pipeline.py      # Data processing pipeline
-│   └── utils.py         # Utility functions
+│   ├── __init__.py          # Package init
+│   ├── cli.py               # CLI entry point
+│   ├── youtube_api.py       # YouTube API client & adapters
+│   ├── pipeline.py          # Data processing pipeline
+│   ├── script_generator.py  # Script abstraction (PR3)
+│   └── utils.py             # Utility functions
 ├── tests/
 │   ├── __init__.py
-│   └── test_smoke.py    # Smoke tests (no API key needed)
-├── output/              # Generated CSV files
-├── index.html           # Web UI (legacy)
-├── script.js            # Web UI (legacy)
+│   ├── test_smoke.py        # Smoke tests (PR1)
+│   ├── test_benchmark.py    # Benchmark tests (PR2)
+│   └── test_script.py       # Script abstraction tests (PR3)
+├── examples/
+│   ├── benchmark_videos.txt   # Example video IDs for benchmark
+│   └── sample_transcript.txt  # Example transcript for script abstraction
+├── output/              # Generated CSV/JSON/MD files (gitignored)
 ├── requirements.txt     # Python dependencies
 ├── .env.example         # Environment template
 ├── .gitignore
