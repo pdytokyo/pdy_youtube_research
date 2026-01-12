@@ -1,0 +1,14 @@
+# Example video IDs/URLs for benchmark mode
+# One video per line, supports:
+# - Plain video IDs (11 characters)
+# - Full YouTube URLs
+# - Short youtu.be URLs
+# - Shorts URLs
+
+# Example popular videos (replace with your target videos)
+dQw4w9WgXcQ
+https://www.youtube.com/watch?v=9bZkp7q19f0
+https://youtu.be/kJQP7kiw5Fk
+
+# Usage:
+# python -m src.cli benchmark --input-file examples/benchmark_videos.txt
