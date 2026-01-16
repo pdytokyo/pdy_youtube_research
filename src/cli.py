@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 from .youtube_api import YouTubeAPIClient, KeywordSearchAdapter, VideoIdAdapter
 from .pipeline import VideoPipeline
 from .utils import parse_video_ids_from_input, format_iso_date
+from .script_generator import abstract_transcript
 
 
 def search_command(args: argparse.Namespace) -> int:
@@ -157,9 +158,73 @@ def benchmark_command(args: argparse.Namespace) -> int:
 
 
 def script_command(args: argparse.Namespace) -> int:
-    """Execute script abstraction (placeholder for PR3)."""
-    print("Script abstraction command will be implemented in PR3.")
-    return 0
+    """Execute script abstraction to generate abstracted script template."""
+    # Get input transcript
+    if args.input:
+        try:
+            with open(args.input, "r", encoding="utf-8") as f:
+                transcript = f.read()
+        except FileNotFoundError:
+            print(f"Error: Input file not found: {args.input}")
+            return 1
+        except Exception as e:
+            print(f"Error reading input file: {e}")
+            return 1
+    elif args.text:
+        transcript = args.text
+    else:
+        print("Error: Provide transcript via --input file or --text")
+        return 1
+
+    if not transcript.strip():
+        print("Error: Transcript is empty")
+        return 1
+
+    print(f"Processing transcript ({len(transcript)} characters)...")
+
+    try:
+        # Determine output paths
+        output_dir = args.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        if args.output:
+            # Use specified output path
+            base_path = args.output.rsplit(".", 1)[0]
+            json_path = f"{base_path}.json"
+            md_path = f"{base_path}.md"
+        else:
+            # Generate default output paths
+            json_path = os.path.join(output_dir, f"script_{timestamp}.json")
+            md_path = os.path.join(output_dir, f"script_{timestamp}.md")
+
+        # Generate abstracted script
+        result = abstract_transcript(
+            transcript=transcript,
+            output_json_path=json_path,
+            output_md_path=md_path,
+        )
+
+        # Print summary
+        print("\n" + "=" * 50)
+        print("Script Abstraction Complete")
+        print("=" * 50)
+        print(f"Original length: {result.metadata.get('original_length', 'N/A')} characters")
+        print(f"Sections identified: {result.metadata.get('section_count', 'N/A')}")
+        print(f"Variables extracted: {result.metadata.get('variable_count', 'N/A')}")
+        print(f"Estimated duration: {result.metadata.get('estimated_duration', 'N/A')}")
+        print("\nOutput files:")
+        print(f"  - JSON: {json_path}")
+        print(f"  - Markdown: {md_path}")
+        print("=" * 50 + "\n")
+
+        return 0
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
 
 
 def main() -> int:
@@ -247,15 +312,19 @@ Examples:
     )
     benchmark_parser.set_defaults(func=benchmark_command)
 
-    # Script command (placeholder for PR3)
-    script_parser = subparsers.add_parser("script", help="Generate abstracted script")
+    # Script command
+    script_parser = subparsers.add_parser("script", help="Generate abstracted script from transcript")
     script_parser.add_argument(
         "--input", "-i",
-        help="Input transcript file",
+        help="Input transcript file path",
+    )
+    script_parser.add_argument(
+        "--text", "-t",
+        help="Direct transcript text input (alternative to --input file)",
     )
     script_parser.add_argument(
         "--output", "-o",
-        help="Output file path",
+        help="Output file base path (will create .json and .md files)",
     )
     script_parser.set_defaults(func=script_command)
 
