@@ -27,7 +27,7 @@ from src.youtube_api import YouTubeAPIClient, KeywordSearchAdapter, VideoInfo
 from src.pipeline import VideoPipeline
 from src.utils import extract_video_id, format_iso_date
 from src.audio_downloader import AudioDownloader
-from src.transcriber import WhisperTranscriber, TranscriptionResult, save_transcript
+from src.transcriber import WhisperTranscriber, TranscriptionResult, save_transcript, get_segment_attr
 from src.outline_generator import OutlineGenerator, Outline, save_outline, format_timecode
 
 load_dotenv()
@@ -356,23 +356,47 @@ def analyze_video(video: VideoInfo, whisper_model: str = "base"):
 
 
 def display_transcript_section(transcription: TranscriptionResult, files: dict):
-    """文字起こし結果を表示（全文、セグメント、ダウンロードボタン）"""
+    """文字起こし結果を表示（全文、セグメント、ダウンロードボタン、カバレッジ）"""
     st.subheader("文字起こし結果")
+    
+    segment_count = len(transcription.segments)
+    last_end = transcription.last_segment_end
+    duration = transcription.duration
+    coverage = transcription.coverage
+    
+    coverage_col1, coverage_col2, coverage_col3, coverage_col4 = st.columns(4)
+    with coverage_col1:
+        st.metric("セグメント数", f"{segment_count}件")
+    with coverage_col2:
+        st.metric("最終end", f"{last_end:.1f}秒")
+    with coverage_col3:
+        st.metric("動画duration", f"{duration:.1f}秒")
+    with coverage_col4:
+        coverage_color = "normal" if coverage >= 95 else "off"
+        st.metric("カバレッジ", f"{coverage:.1f}%", delta=None if coverage >= 95 else "低い", delta_color=coverage_color)
+    
+    if transcription.coverage_warning:
+        st.warning(transcription.coverage_warning)
     
     tab_full, tab_segments = st.tabs(["全文", "セグメント一覧（タイムコード付き）"])
     
     with tab_full:
-        st.text_area("文字起こし全文", transcription.full_text, height=300)
+        full_text = transcription.get_full_text_with_newlines()
+        char_count = len(full_text)
+        st.markdown(f"**文字数:** {char_count:,}文字")
+        st.text_area("文字起こし全文（改行付き）", full_text, height=300, key="transcript_full_text")
+        st.button("全文をコピー", key="copy_full_text", help="テキストエリアを選択してCtrl+A, Ctrl+Cでコピーできます")
     
     with tab_segments:
         segments_data = []
         for seg in transcription.segments:
-            start_tc = format_timecode(seg["start"])
-            end_tc = format_timecode(seg["end"])
+            start_tc = format_timecode(get_segment_attr(seg, "start", 0))
+            end_tc = format_timecode(get_segment_attr(seg, "end", 0))
+            text = get_segment_attr(seg, "text", "")
             segments_data.append({
                 "開始": start_tc,
                 "終了": end_tc,
-                "テキスト": seg["text"].strip(),
+                "テキスト": text.strip() if text else "",
             })
         df = pd.DataFrame(segments_data)
         st.dataframe(df, use_container_width=True, hide_index=True, height=400)

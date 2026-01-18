@@ -32,6 +32,43 @@ class TranscriptSegment:
         return f"{self.id}\n{format_time(self.start)} --> {format_time(self.end)}\n{self.text}\n"
 
 
+def get_segment_attr(seg, attr: str, default=None):
+    """
+    Get attribute from segment (works with both dict and TranscriptSegment object).
+    
+    Args:
+        seg: Segment (dict or TranscriptSegment)
+        attr: Attribute name ('start', 'end', 'text', 'id')
+        default: Default value if attribute not found
+    
+    Returns:
+        Attribute value
+    """
+    if isinstance(seg, dict):
+        return seg.get(attr, default)
+    return getattr(seg, attr, default)
+
+
+def generate_full_text_from_segments(segments: list) -> str:
+    """
+    Generate full text from segments with proper newlines.
+    
+    Each segment is on its own line for readability.
+    
+    Args:
+        segments: List of segments (dict or TranscriptSegment)
+    
+    Returns:
+        Full text with newlines between segments
+    """
+    lines = []
+    for seg in segments:
+        text = get_segment_attr(seg, "text", "")
+        if text:
+            lines.append(text.strip())
+    return "\n".join(lines)
+
+
 @dataclass
 class TranscriptionResult:
     """Result of audio transcription."""
@@ -42,6 +79,32 @@ class TranscriptionResult:
     duration: float = 0.0
     error_message: Optional[str] = None
     video_id: Optional[str] = None
+    video_duration: float = 0.0
+
+    @property
+    def last_segment_end(self) -> float:
+        """Get the end time of the last segment."""
+        if not self.segments:
+            return 0.0
+        return get_segment_attr(self.segments[-1], "end", 0.0)
+
+    @property
+    def coverage(self) -> float:
+        """Calculate coverage percentage (last_end / duration)."""
+        if self.duration <= 0:
+            return 0.0
+        return min(100.0, (self.last_segment_end / self.duration) * 100)
+
+    @property
+    def coverage_warning(self) -> str:
+        """Return warning message if coverage is low."""
+        if self.coverage < 95.0 and self.duration > 0:
+            return f"警告: 文字起こしカバレッジが低い可能性があります ({self.coverage:.1f}%)"
+        return ""
+
+    def get_full_text_with_newlines(self) -> str:
+        """Get full text with proper newlines between segments."""
+        return generate_full_text_from_segments(self.segments)
 
 
 class WhisperTranscriber:
@@ -232,6 +295,8 @@ def save_transcript(
     base_name = f"transcript_{ts}"
     
     output_files = {}
+    
+    full_text_with_newlines = result.get_full_text_with_newlines()
 
     json_path = os.path.join(video_output_dir, f"{base_name}.json")
     json_data = {
@@ -239,7 +304,9 @@ def save_transcript(
         "language": result.language,
         "duration": result.duration,
         "segment_count": len(result.segments),
-        "full_text": result.full_text,
+        "last_segment_end": result.last_segment_end,
+        "coverage": result.coverage,
+        "full_text": full_text_with_newlines,
         "segments": [asdict(seg) for seg in result.segments]
     }
     with open(json_path, "w", encoding="utf-8") as f:
@@ -248,7 +315,7 @@ def save_transcript(
 
     txt_path = os.path.join(video_output_dir, f"{base_name}.txt")
     with open(txt_path, "w", encoding="utf-8") as f:
-        f.write(result.full_text)
+        f.write(full_text_with_newlines)
     output_files["txt"] = txt_path
 
     srt_path = os.path.join(video_output_dir, f"{base_name}.srt")

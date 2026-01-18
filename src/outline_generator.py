@@ -347,15 +347,67 @@ class OutlineGenerator:
             return text
         return text[:max_length].rsplit(" ", 1)[0] + "..."
 
+    def _calculate_beat_durations(
+        self,
+        total_duration: float,
+        min_beats: int = 3,
+        target_min: float = 15.0,
+        target_max: float = 30.0,
+    ) -> tuple[float, float]:
+        """
+        Calculate appropriate beat durations based on total video duration.
+        
+        For short videos, use smaller beat durations to ensure minimum beat count.
+        For long videos, use standard 15-30 second beats.
+        
+        Args:
+            total_duration: Total video duration in seconds
+            min_beats: Minimum number of beats to generate
+            target_min: Target minimum beat duration
+            target_max: Target maximum beat duration
+        
+        Returns:
+            Tuple of (min_beat_duration, max_beat_duration)
+        """
+        if total_duration <= 0:
+            return target_min, target_max
+        
+        max_possible_beats = total_duration / target_min
+        if max_possible_beats >= min_beats:
+            return target_min, target_max
+        
+        adjusted_max = total_duration / min_beats
+        adjusted_min = adjusted_max * 0.5
+        
+        adjusted_min = max(3.0, adjusted_min)
+        adjusted_max = max(5.0, adjusted_max)
+        
+        return adjusted_min, adjusted_max
+
     def _generate_beats(
         self,
         segments: list[TranscriptSegment],
         min_beat_duration: float = 15.0,
         max_beat_duration: float = 30.0,
+        min_beats: int = 3,
     ) -> list[Beat]:
-        """Generate Beats from segments (15-30 second units)."""
+        """
+        Generate Beats from segments (15-30 second units, minimum 3-5 beats).
+        
+        For short videos (< 90s), beat durations are adjusted to ensure
+        at least min_beats are generated.
+        """
         if not segments:
             return []
+
+        total_duration = segments[-1].end - segments[0].start if segments else 0
+        
+        actual_min, actual_max = self._calculate_beat_durations(
+            total_duration, 
+            min_beats=min_beats,
+            target_min=min_beat_duration,
+            target_max=max_beat_duration,
+        )
 
         beats = []
         beat_id = 1
@@ -369,9 +421,9 @@ class OutlineGenerator:
             duration = current_end - current_start
 
             should_create_beat = False
-            if duration >= max_beat_duration:
+            if duration >= actual_max:
                 should_create_beat = True
-            elif duration >= min_beat_duration:
+            elif duration >= actual_min:
                 if (seg.text.endswith("。") or seg.text.endswith(".") or 
                     seg.text.endswith("？") or seg.text.endswith("?") or
                     seg.text.endswith("！") or seg.text.endswith("!")):
@@ -409,6 +461,69 @@ class OutlineGenerator:
             )
             beats.append(beat)
 
+        if len(beats) < min_beats and len(segments) >= min_beats:
+            return self._force_split_into_beats(segments, min_beats)
+
+        return beats
+
+    def _force_split_into_beats(
+        self,
+        segments: list[TranscriptSegment],
+        target_beats: int,
+    ) -> list[Beat]:
+        """
+        Force split segments into a target number of beats.
+        
+        Used when normal beat generation produces too few beats.
+        """
+        if not segments:
+            return []
+        
+        total_duration = segments[-1].end - segments[0].start
+        beat_duration = total_duration / target_beats
+        
+        beats = []
+        beat_id = 1
+        current_start = segments[0].start
+        current_texts = []
+        current_end = segments[0].end
+        
+        for seg in segments:
+            current_texts.append(seg.text)
+            current_end = seg.end
+            
+            if current_end - current_start >= beat_duration and current_texts:
+                text = " ".join(current_texts)
+                template, variables = self._extract_variables(text, beat_id - 1)
+                
+                beat = Beat(
+                    id=beat_id,
+                    start=current_start,
+                    end=current_end,
+                    summary=self._create_summary(text),
+                    template=template,
+                    original_text=text,
+                    variables=variables,
+                )
+                beats.append(beat)
+                beat_id += 1
+                current_start = current_end
+                current_texts = []
+        
+        if current_texts:
+            text = " ".join(current_texts)
+            template, variables = self._extract_variables(text, beat_id - 1)
+            beat = Beat(
+                id=beat_id,
+                start=current_start,
+                end=current_end,
+                summary=self._create_summary(text),
+                template=template,
+                original_text=text,
+                variables=variables,
+            )
+            beats.append(beat)
+        
         return beats
 
     def _group_beats_into_sections(self, beats: list[Beat]) -> list[OutlineSection]:
