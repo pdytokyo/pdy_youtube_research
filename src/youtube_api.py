@@ -5,10 +5,99 @@ Handles all YouTube API interactions with quota optimization.
 """
 
 import os
+import re
 from typing import Optional
 from dataclasses import dataclass
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+
+def parse_iso8601_duration(duration_str: str) -> int:
+    """
+    Parse ISO 8601 duration format to seconds.
+    
+    Examples:
+        PT12M5S -> 725 seconds
+        PT1H30M -> 5400 seconds
+        PT45S -> 45 seconds
+    """
+    if not duration_str:
+        return 0
+    
+    pattern = r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?'
+    match = re.match(pattern, duration_str)
+    
+    if not match:
+        return 0
+    
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2) or 0)
+    seconds = int(match.group(3) or 0)
+    
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def format_duration(seconds: int) -> str:
+    """
+    Format seconds as M:SS or H:MM:SS.
+    
+    Examples:
+        36 -> "0:36"
+        725 -> "12:05"
+        3665 -> "1:01:05"
+    """
+    if seconds < 0:
+        return "0:00"
+    
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
+def calculate_aspect_ratio(width: int, height: int) -> str:
+    """
+    Calculate aspect ratio string from dimensions.
+    
+    Returns common ratios like "16:9", "9:16", "1:1", or "W:H" for uncommon ratios.
+    """
+    if not width or not height:
+        return "不明"
+    
+    from math import gcd
+    divisor = gcd(width, height)
+    w = width // divisor
+    h = height // divisor
+    
+    common_ratios = {
+        (16, 9): "16:9",
+        (9, 16): "9:16",
+        (4, 3): "4:3",
+        (3, 4): "3:4",
+        (1, 1): "1:1",
+        (21, 9): "21:9",
+        (9, 21): "9:21",
+    }
+    
+    if (w, h) in common_ratios:
+        return common_ratios[(w, h)]
+    
+    ratio = width / height
+    if abs(ratio - 16/9) < 0.1:
+        return "16:9"
+    elif abs(ratio - 9/16) < 0.1:
+        return "9:16"
+    elif abs(ratio - 4/3) < 0.1:
+        return "4:3"
+    elif abs(ratio - 3/4) < 0.1:
+        return "3:4"
+    elif abs(ratio - 1) < 0.1:
+        return "1:1"
+    
+    return f"{w}:{h}"
 
 
 @dataclass
@@ -25,6 +114,29 @@ class VideoInfo:
     orientation: str
     thumbnail_url: str
     published_at: str
+    duration_seconds: int = 0
+    thumbnail_width: int = 0
+    thumbnail_height: int = 0
+
+    @property
+    def duration_formatted(self) -> str:
+        """Get formatted duration string (M:SS or H:MM:SS)."""
+        return format_duration(self.duration_seconds)
+
+    @property
+    def aspect_ratio(self) -> str:
+        """Get aspect ratio string."""
+        return calculate_aspect_ratio(self.thumbnail_width, self.thumbnail_height)
+
+    @property
+    def is_short(self) -> bool:
+        """Check if video is a Short (<=90 seconds)."""
+        return self.duration_seconds <= 90
+
+    @property
+    def length_label(self) -> str:
+        """Get SHORT or LONG label."""
+        return "SHORT" if self.is_short else "LONG"
 
 
 class YouTubeAPIClient:
@@ -263,6 +375,7 @@ class KeywordSearchAdapter(YouTubeAPIAdapter):
                     try:
                         snippet = video["snippet"]
                         statistics = video.get("statistics", {})
+                        content_details = video.get("contentDetails", {})
                         channel_id = snippet["channelId"]
                         channel_info = channel_details.get(channel_id, {})
                         channel_stats = channel_info.get("statistics", {})
@@ -271,17 +384,24 @@ class KeywordSearchAdapter(YouTubeAPIAdapter):
                         sub_count_str = channel_stats.get("subscriberCount")
                         subscriber_count = int(sub_count_str) if sub_count_str else None
                         
-                        # Determine orientation from thumbnails
-                        orientation = self.client.determine_orientation(
-                            snippet.get("thumbnails", {})
-                        )
+                        # Parse duration from contentDetails
+                        duration_str = content_details.get("duration", "")
+                        duration_seconds = parse_iso8601_duration(duration_str)
                         
-                        # Get best thumbnail URL
+                        # Determine orientation and get dimensions from thumbnails
                         thumbnails = snippet.get("thumbnails", {})
+                        orientation = self.client.determine_orientation(thumbnails)
+                        
+                        # Get best thumbnail URL and dimensions
                         thumbnail_url = ""
+                        thumbnail_width = 0
+                        thumbnail_height = 0
                         for quality in ["maxres", "standard", "high", "medium", "default"]:
                             if quality in thumbnails:
-                                thumbnail_url = thumbnails[quality].get("url", "")
+                                thumb = thumbnails[quality]
+                                thumbnail_url = thumb.get("url", "")
+                                thumbnail_width = thumb.get("width", 0)
+                                thumbnail_height = thumb.get("height", 0)
                                 break
                         
                         videos.append(VideoInfo(
@@ -296,6 +416,9 @@ class KeywordSearchAdapter(YouTubeAPIAdapter):
                             orientation=orientation,
                             thumbnail_url=thumbnail_url,
                             published_at=snippet.get("publishedAt", ""),
+                            duration_seconds=duration_seconds,
+                            thumbnail_width=thumbnail_width,
+                            thumbnail_height=thumbnail_height,
                         ))
                     except (KeyError, ValueError) as e:
                         errors.append({
@@ -352,6 +475,7 @@ class VideoIdAdapter(YouTubeAPIAdapter):
                     try:
                         snippet = video["snippet"]
                         statistics = video.get("statistics", {})
+                        content_details = video.get("contentDetails", {})
                         channel_id = snippet["channelId"]
                         channel_info = channel_details.get(channel_id, {})
                         channel_stats = channel_info.get("statistics", {})
@@ -359,15 +483,24 @@ class VideoIdAdapter(YouTubeAPIAdapter):
                         sub_count_str = channel_stats.get("subscriberCount")
                         subscriber_count = int(sub_count_str) if sub_count_str else None
                         
-                        orientation = self.client.determine_orientation(
-                            snippet.get("thumbnails", {})
-                        )
+                        # Parse duration from contentDetails
+                        duration_str = content_details.get("duration", "")
+                        duration_seconds = parse_iso8601_duration(duration_str)
                         
+                        # Determine orientation and get dimensions from thumbnails
                         thumbnails = snippet.get("thumbnails", {})
+                        orientation = self.client.determine_orientation(thumbnails)
+                        
+                        # Get best thumbnail URL and dimensions
                         thumbnail_url = ""
+                        thumbnail_width = 0
+                        thumbnail_height = 0
                         for quality in ["maxres", "standard", "high", "medium", "default"]:
                             if quality in thumbnails:
-                                thumbnail_url = thumbnails[quality].get("url", "")
+                                thumb = thumbnails[quality]
+                                thumbnail_url = thumb.get("url", "")
+                                thumbnail_width = thumb.get("width", 0)
+                                thumbnail_height = thumb.get("height", 0)
                                 break
                         
                         videos.append(VideoInfo(
@@ -382,6 +515,9 @@ class VideoIdAdapter(YouTubeAPIAdapter):
                             orientation=orientation,
                             thumbnail_url=thumbnail_url,
                             published_at=snippet.get("publishedAt", ""),
+                            duration_seconds=duration_seconds,
+                            thumbnail_width=thumbnail_width,
+                            thumbnail_height=thumbnail_height,
                         ))
                     except (KeyError, ValueError) as e:
                         errors.append({

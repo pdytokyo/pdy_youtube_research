@@ -128,51 +128,127 @@ def search_videos(
         return [], [], [{"error": str(e)}]
 
 
-def display_video_table(videos: list[VideoInfo], title: str, selectable: bool = False):
-    """動画をテーブル形式で表示"""
+def display_video_table(
+    videos: list[VideoInfo], 
+    title: str, 
+    selectable: bool = False,
+    show_filters: bool = False,
+):
+    """動画をテーブル形式で表示（尺、アス比、SHORT/LONGラベル付き）"""
     if not videos:
         st.info(f"{title}が見つかりませんでした。")
         return None
     
-    st.subheader(f"{title} ({len(videos)}件)")
+    filtered_videos = videos
+    
+    if show_filters:
+        filter_col1, filter_col2, filter_col3 = st.columns(3)
+        
+        with filter_col1:
+            duration_filter = st.selectbox(
+                "尺でフィルタ",
+                ["すべて", "SHORT (90秒以下)", "LONG (90秒超)"],
+                key=f"duration_filter_{title}"
+            )
+        
+        with filter_col2:
+            orientation_filter = st.selectbox(
+                "形状でフィルタ",
+                ["すべて", "vertical (縦)", "horizontal (横)", "square (正方形)", "unknown (不明)"],
+                key=f"orientation_filter_{title}"
+            )
+        
+        with filter_col3:
+            sort_option = st.selectbox(
+                "ソート",
+                ["倍率順（高い順）", "再生数順（多い順）", "尺順（短い順）", "尺順（長い順）"],
+                key=f"sort_option_{title}"
+            )
+        
+        if duration_filter == "SHORT (90秒以下)":
+            filtered_videos = [v for v in filtered_videos if v.is_short]
+        elif duration_filter == "LONG (90秒超)":
+            filtered_videos = [v for v in filtered_videos if not v.is_short]
+        
+        if orientation_filter != "すべて":
+            orientation_value = orientation_filter.split(" ")[0]
+            filtered_videos = [v for v in filtered_videos if v.orientation == orientation_value]
+        
+        if sort_option == "倍率順（高い順）":
+            filtered_videos = sorted(
+                filtered_videos, 
+                key=lambda v: v.view_count / v.subscriber_count if v.subscriber_count else 0, 
+                reverse=True
+            )
+        elif sort_option == "再生数順（多い順）":
+            filtered_videos = sorted(filtered_videos, key=lambda v: v.view_count, reverse=True)
+        elif sort_option == "尺順（短い順）":
+            filtered_videos = sorted(filtered_videos, key=lambda v: v.duration_seconds)
+        elif sort_option == "尺順（長い順）":
+            filtered_videos = sorted(filtered_videos, key=lambda v: v.duration_seconds, reverse=True)
+    
+    st.subheader(f"{title} ({len(filtered_videos)}件)")
     
     data = []
-    for v in videos:
+    for v in filtered_videos:
         sub_display = f"{v.subscriber_count:,}" if v.subscriber_count else "不明"
         ratio = v.view_count / v.subscriber_count if v.subscriber_count else 0
+        
+        length_label = v.length_label
+        duration_display = v.duration_formatted
+        aspect_ratio = v.aspect_ratio
+        orientation_ja = {
+            "vertical": "縦",
+            "horizontal": "横",
+            "square": "正方形",
+            "unknown": "不明"
+        }.get(v.orientation, v.orientation)
+        
         data.append({
-            "タイトル": v.title[:50] + "..." if len(v.title) > 50 else v.title,
-            "チャンネル": v.channel_title,
+            "尺": f"[{length_label}] {duration_display}",
+            "形状": f"[{orientation_ja}] {aspect_ratio}",
+            "タイトル": v.title[:40] + "..." if len(v.title) > 40 else v.title,
+            "チャンネル": v.channel_title[:15] + "..." if len(v.channel_title) > 15 else v.channel_title,
             "再生数": f"{v.view_count:,}",
             "登録者数": sub_display,
             "倍率": f"{ratio:.1f}x" if v.subscriber_count else "N/A",
-            "向き": v.orientation,
             "video_id": v.video_id,
             "url": v.url,
         })
     
-    if selectable:
+    if selectable and filtered_videos:
         selected_idx = st.selectbox(
             "分析する動画を選択:",
             range(len(data)),
-            format_func=lambda i: f"{data[i]['タイトル']} ({data[i]['再生数']}再生)",
+            format_func=lambda i: f"[{data[i]['尺']}] {data[i]['タイトル']} ({data[i]['再生数']}再生)",
             key=f"select_{title}"
         )
         
         if selected_idx is not None:
-            selected = videos[selected_idx]
+            selected = filtered_videos[selected_idx]
+            
+            length_label = selected.length_label
+            duration_display = selected.duration_formatted
+            aspect_ratio = selected.aspect_ratio
+            orientation_ja = {
+                "vertical": "縦",
+                "horizontal": "横",
+                "square": "正方形",
+                "unknown": "不明"
+            }.get(selected.orientation, selected.orientation)
             
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.markdown(f"**選択中:** [{selected.title}]({selected.url})")
+                st.markdown(f"**[{length_label} {duration_display}]** **[{orientation_ja} {aspect_ratio}]**")
                 st.markdown(f"チャンネル: {selected.channel_title} | 再生数: {selected.view_count:,}")
             with col2:
                 if st.button("この動画を分析", type="primary"):
                     return selected
-    else:
+    elif not selectable:
         df = pd.DataFrame(data)
         st.dataframe(
-            df[["タイトル", "チャンネル", "再生数", "登録者数", "倍率", "向き"]],
+            df[["尺", "形状", "タイトル", "チャンネル", "再生数", "登録者数", "倍率"]],
             use_container_width=True,
             hide_index=True,
         )
@@ -495,7 +571,12 @@ def main():
                     st.session_state.search_results = raw
         
         if st.session_state.winners:
-            selected = display_video_table(st.session_state.winners, "当たり動画", selectable=True)
+            selected = display_video_table(
+                st.session_state.winners, 
+                "当たり動画", 
+                selectable=True,
+                show_filters=True,
+            )
             if selected:
                 st.session_state.selected_video = selected
                 st.session_state.analysis_status = "ready"
@@ -503,7 +584,12 @@ def main():
         
         if st.session_state.search_results:
             with st.expander(f"全結果を表示 ({len(st.session_state.search_results)}件)"):
-                display_video_table(st.session_state.search_results, "全結果", selectable=False)
+                display_video_table(
+                    st.session_state.search_results, 
+                    "全結果", 
+                    selectable=False,
+                    show_filters=True,
+                )
     
     with tab2:
         st.header("選択した動画を分析")
@@ -511,7 +597,18 @@ def main():
         if st.session_state.selected_video:
             video = st.session_state.selected_video
             
+            length_label = video.length_label
+            duration_display = video.duration_formatted
+            aspect_ratio = video.aspect_ratio
+            orientation_ja = {
+                "vertical": "縦",
+                "horizontal": "横",
+                "square": "正方形",
+                "unknown": "不明"
+            }.get(video.orientation, video.orientation)
+            
             st.markdown(f"**選択中の動画:** [{video.title}]({video.url})")
+            st.markdown(f"**[{length_label} {duration_display}]** **[{orientation_ja} {aspect_ratio}]**")
             st.markdown(f"チャンネル: {video.channel_title} | 再生数: {video.view_count:,}")
             
             col1, col2 = st.columns([1, 3])
@@ -555,6 +652,9 @@ def main():
                         orientation="unknown",
                         thumbnail_url="",
                         published_at="",
+                        duration_seconds=0,
+                        thumbnail_width=0,
+                        thumbnail_height=0,
                     )
                     
                     results = analyze_video(video, whisper_model=whisper_model)
