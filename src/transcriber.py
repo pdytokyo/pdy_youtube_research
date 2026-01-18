@@ -214,26 +214,26 @@ def save_transcript(
     timestamp: Optional[str] = None,
 ) -> dict[str, str]:
     """
-    Save transcription results to files.
+    Save transcription results to files in output/videoId/ folder structure.
 
     Args:
         result: TranscriptionResult to save
-        output_dir: Directory to save files
-        video_id: Video ID for filename
+        output_dir: Base output directory
+        video_id: Video ID for folder and filename
         timestamp: Optional timestamp for filename
 
     Returns:
         Dictionary mapping format to file path
     """
-    os.makedirs(output_dir, exist_ok=True)
+    video_output_dir = os.path.join(output_dir, video_id)
+    os.makedirs(video_output_dir, exist_ok=True)
     
     ts = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_name = f"transcript_{video_id}_{ts}"
+    base_name = f"transcript_{ts}"
     
     output_files = {}
 
-    # Save JSON with segments
-    json_path = os.path.join(output_dir, f"{base_name}.json")
+    json_path = os.path.join(video_output_dir, f"{base_name}.json")
     json_data = {
         "video_id": video_id,
         "language": result.language,
@@ -246,14 +246,12 @@ def save_transcript(
         json.dump(json_data, f, ensure_ascii=False, indent=2)
     output_files["json"] = json_path
 
-    # Save plain text
-    txt_path = os.path.join(output_dir, f"{base_name}.txt")
+    txt_path = os.path.join(video_output_dir, f"{base_name}.txt")
     with open(txt_path, "w", encoding="utf-8") as f:
         f.write(result.full_text)
     output_files["txt"] = txt_path
 
-    # Save SRT
-    srt_path = os.path.join(output_dir, f"{base_name}.srt")
+    srt_path = os.path.join(video_output_dir, f"{base_name}.srt")
     with open(srt_path, "w", encoding="utf-8") as f:
         for seg in result.segments:
             f.write(seg.to_srt_entry() + "\n")

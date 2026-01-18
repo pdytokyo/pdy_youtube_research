@@ -1,8 +1,8 @@
 """
-Outline Generator with Timecodes.
+Outline Generator with Timecodes and Beats.
 
 Generates abstracted script outlines from Whisper transcript segments.
-Includes timecodes for each section and variable extraction.
+Includes timecodes for each section, Beats (15-30s units), and variable extraction.
 """
 
 import os
@@ -23,10 +23,22 @@ class SectionType(str, Enum):
     CLAIM = "claim"
     REASON = "reason"
     EXAMPLE = "example"
+    STEPS = "steps"
+    PROOF = "proof"
     SUMMARY = "summary"
     CTA = "cta"
     TRANSITION = "transition"
     OTHER = "other"
+
+
+def format_timecode(seconds: float) -> str:
+    """Format seconds as MM:SS or HH:MM:SS."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
 
 
 @dataclass
@@ -39,33 +51,49 @@ class Variable:
 
 
 @dataclass
+class Beat:
+    """A Beat is a 15-30 second unit of content with timecodes."""
+    id: int
+    start: float  # Start time in seconds
+    end: float    # End time in seconds
+    summary: str  # One-line summary
+    template: str  # Abstracted template with variables
+    original_text: str
+    variables: list[Variable] = field(default_factory=list)
+
+    @property
+    def timecode_start(self) -> str:
+        return format_timecode(self.start)
+
+    @property
+    def timecode_end(self) -> str:
+        return format_timecode(self.end)
+
+    @property
+    def duration(self) -> float:
+        return self.end - self.start
+
+
+@dataclass
 class OutlineSection:
-    """A section of the outline with timecodes."""
+    """A section of the outline with timecodes, containing multiple Beats."""
     name: str
     section_type: SectionType
     start: float  # Start time in seconds
     end: float    # End time in seconds
     summary: str
     template: str  # Abstracted template with variables
+    beats: list[Beat] = field(default_factory=list)
     variables: list[Variable] = field(default_factory=list)
     original_text: str = ""
 
-    def format_timecode(self, seconds: float) -> str:
-        """Format seconds as MM:SS or HH:MM:SS."""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        if hours > 0:
-            return f"{hours:02d}:{minutes:02d}:{secs:02d}"
-        return f"{minutes:02d}:{secs:02d}"
-
     @property
     def timecode_start(self) -> str:
-        return self.format_timecode(self.start)
+        return format_timecode(self.start)
 
     @property
     def timecode_end(self) -> str:
-        return self.format_timecode(self.end)
+        return format_timecode(self.end)
 
     @property
     def duration(self) -> float:
@@ -74,9 +102,10 @@ class OutlineSection:
 
 @dataclass
 class Outline:
-    """Complete outline with sections and metadata."""
+    """Complete outline with sections, beats, and metadata."""
     video_id: str
     sections: list[OutlineSection]
+    all_beats: list[Beat]
     all_variables: list[Variable]
     metadata: dict = field(default_factory=dict)
 
@@ -85,6 +114,21 @@ class Outline:
         return {
             "video_id": self.video_id,
             "metadata": self.metadata,
+            "beats": [
+                {
+                    "id": b.id,
+                    "start": b.start,
+                    "end": b.end,
+                    "timecode_start": b.timecode_start,
+                    "timecode_end": b.timecode_end,
+                    "duration": b.duration,
+                    "summary": b.summary,
+                    "template": b.template,
+                    "original_text": b.original_text,
+                    "variables": [asdict(v) for v in b.variables],
+                }
+                for b in self.all_beats
+            ],
             "sections": [
                 {
                     "name": s.name,
@@ -96,6 +140,7 @@ class Outline:
                     "duration": s.duration,
                     "summary": s.summary,
                     "template": s.template,
+                    "beat_ids": [b.id for b in s.beats],
                     "variables": [asdict(v) for v in s.variables],
                     "original_text": s.original_text,
                 }
@@ -109,58 +154,69 @@ class Outline:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=indent)
 
     def to_markdown(self) -> str:
-        """Convert to Markdown with timecodes."""
+        """Convert to Markdown with timecodes and beats."""
         lines = []
         
-        # Header
-        lines.append("# Video Outline with Timecodes")
+        lines.append("# 動画構成アウトライン（タイムコード付き）")
         lines.append("")
         
-        # Metadata
         if self.metadata:
-            lines.append("## Metadata")
+            lines.append("## メタデータ")
             lines.append("")
             for key, value in self.metadata.items():
                 lines.append(f"- **{key}**: {value}")
             lines.append("")
         
-        # Sections with timecodes
-        lines.append("## Script Structure")
+        lines.append("## Beats一覧（15〜30秒単位）")
+        lines.append("")
+        lines.append("| # | タイムコード | 要約 |")
+        lines.append("|---|-------------|------|")
+        for beat in self.all_beats:
+            summary = beat.summary[:50] + "..." if len(beat.summary) > 50 else beat.summary
+            lines.append(f"| {beat.id} | [{beat.timecode_start}] - [{beat.timecode_end}] | {summary} |")
+        lines.append("")
+        
+        lines.append("## セクション構成")
         lines.append("")
         
         for i, section in enumerate(self.sections, 1):
             lines.append(f"### {i}. [{section.timecode_start}] {section.name} ({section.section_type.value.upper()})")
             lines.append("")
-            lines.append(f"**Duration**: {section.timecode_start} - {section.timecode_end} ({section.duration:.1f}s)")
+            lines.append(f"**時間**: {section.timecode_start} - {section.timecode_end} ({section.duration:.1f}秒)")
             lines.append("")
-            lines.append("**Summary:**")
+            lines.append("**要約:**")
             lines.append(f"> {section.summary}")
             lines.append("")
-            lines.append("**Abstracted Template:**")
+            
+            if section.beats:
+                lines.append("**含まれるBeats:**")
+                for beat in section.beats:
+                    lines.append(f"- Beat {beat.id} [{beat.timecode_start}]: {beat.summary[:60]}...")
+                lines.append("")
+            
+            lines.append("**抽象化テンプレート:**")
             lines.append("")
-            lines.append(f"```")
+            lines.append("```")
             lines.append(section.template)
-            lines.append(f"```")
+            lines.append("```")
             lines.append("")
             
             if section.variables:
-                lines.append("**Variables:**")
+                lines.append("**変数:**")
                 for var in section.variables:
                     lines.append(f"- `{var.name}`: {var.original_value} ({var.category})")
                 lines.append("")
         
-        # Variable Summary
-        lines.append("## All Variables (Replacement Points)")
+        lines.append("## 全変数一覧（差し替えポイント）")
         lines.append("")
-        lines.append("| Variable | Category | Original Value |")
-        lines.append("|----------|----------|----------------|")
+        lines.append("| 変数 | カテゴリ | 元の値 |")
+        lines.append("|------|----------|--------|")
         for var in self.all_variables:
             orig = var.original_value[:40] + "..." if len(var.original_value) > 40 else var.original_value
             lines.append(f"| `{var.name}` | {var.category} | {orig} |")
         lines.append("")
         
-        # Timecode Index
-        lines.append("## Timecode Index")
+        lines.append("## タイムコード索引")
         lines.append("")
         for i, section in enumerate(self.sections, 1):
             lines.append(f"- [{section.timecode_start}] {section.name}")
@@ -169,9 +225,8 @@ class Outline:
 
 
 class OutlineGenerator:
-    """Generates abstracted outlines from transcript segments."""
+    """Generates abstracted outlines with Beats from transcript segments."""
 
-    # Patterns for detecting section types
     SECTION_PATTERNS = {
         SectionType.HOOK: [
             r"^(皆さん|みなさん|こんにちは|今日は|ねえ|ちょっと待って)",
@@ -192,6 +247,15 @@ class OutlineGenerator:
             r"(なぜなら|理由|だから|というのも)",
             r"(because|reason|that's why|since)",
         ],
+        SectionType.STEPS: [
+            r"(ステップ|手順|やり方|方法)",
+            r"(まず|次に|そして|最後に)",
+            r"(step|first|then|next|finally)",
+        ],
+        SectionType.PROOF: [
+            r"(証拠|データ|結果|実績|成果)",
+            r"(research|study|data|results|proof)",
+        ],
         SectionType.EXAMPLE: [
             r"(例えば|たとえば|具体的に|実際に)",
             r"(私の場合|私は|僕は|経験)",
@@ -208,32 +272,37 @@ class OutlineGenerator:
         ],
     }
 
-    # Patterns for extracting variables
     VARIABLE_PATTERNS = [
-        # Numbers with units
         (r"(\d+(?:,\d+)*(?:\.\d+)?)\s*(円|ドル|万|億|%|パーセント|人|回|日|週間|ヶ月|年|kg|km|m|個|本|件)", "number", "{NUMBER}"),
-        # Specific years
         (r"(20\d{2}年|19\d{2}年)", "number", "{YEAR}"),
-        # Person names (Japanese with honorifics)
         (r"([一-龯]{2,4})(さん|氏|先生|社長|さま)", "who", "{WHO}"),
-        # Company/Brand names
         (r"(株式会社[一-龯a-zA-Z]+|[一-龯a-zA-Z]+株式会社)", "brand", "{BRAND}"),
-        # Product names (quoted)
         (r"「([^」]+)」", "brand", "{PRODUCT}"),
-        # Places
         (r"(東京|大阪|名古屋|福岡|北海道|沖縄|[一-龯]{2,4}県|[一-龯]{2,4}市)", "place", "{PLACE}"),
-        # English names
         (r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", "who", "{WHO}"),
-        # Step indicators
         (r"(ステップ\d+|第\d+に|まず|次に|最後に|\d+つ目)", "steps", "{STEP}"),
     ]
+
+    SECTION_NAMES_JA = {
+        SectionType.HOOK: "オープニング（フック）",
+        SectionType.PROBLEM: "問題提起",
+        SectionType.CLAIM: "主張・解決策",
+        SectionType.REASON: "理由・根拠",
+        SectionType.STEPS: "手順・ステップ",
+        SectionType.PROOF: "証拠・実績",
+        SectionType.EXAMPLE: "具体例・体験談",
+        SectionType.SUMMARY: "まとめ",
+        SectionType.CTA: "行動喚起（CTA）",
+        SectionType.TRANSITION: "つなぎ",
+        SectionType.OTHER: "その他",
+    }
 
     def __init__(self):
         self.variables: list[Variable] = []
         self.variable_counter: dict[str, int] = {}
+        self.beats: list[Beat] = []
 
     def _get_next_variable_name(self, base_name: str) -> str:
-        """Generate unique variable name."""
         if base_name not in self.variable_counter:
             self.variable_counter[base_name] = 0
         self.variable_counter[base_name] += 1
@@ -243,7 +312,6 @@ class OutlineGenerator:
         return f"{base_name}_{count}"
 
     def _detect_section_type(self, text: str) -> SectionType:
-        """Detect the section type based on content patterns."""
         for section_type, patterns in self.SECTION_PATTERNS.items():
             for pattern in patterns:
                 if re.search(pattern, text, re.IGNORECASE):
@@ -251,7 +319,6 @@ class OutlineGenerator:
         return SectionType.OTHER
 
     def _extract_variables(self, text: str, section_index: int) -> tuple[str, list[Variable]]:
-        """Extract variables from text and return abstracted text."""
         abstracted = text
         variables = []
         
@@ -274,25 +341,24 @@ class OutlineGenerator:
         
         return abstracted, variables
 
-    def _group_segments_into_sections(
+    def _create_summary(self, text: str, max_length: int = 80) -> str:
+        text = text.strip()
+        if len(text) <= max_length:
+            return text
+        return text[:max_length].rsplit(" ", 1)[0] + "..."
+
+    def _generate_beats(
         self,
         segments: list[TranscriptSegment],
-        min_section_duration: float = 15.0,
-    ) -> list[tuple[float, float, str]]:
-        """
-        Group segments into logical sections.
-
-        Args:
-            segments: List of transcript segments
-            min_section_duration: Minimum duration for a section in seconds
-
-        Returns:
-            List of (start, end, text) tuples for each section
-        """
+        min_beat_duration: float = 15.0,
+        max_beat_duration: float = 30.0,
+    ) -> list[Beat]:
+        """Generate Beats from segments (15-30 second units)."""
         if not segments:
             return []
 
-        sections = []
+        beats = []
+        beat_id = 1
         current_start = segments[0].start
         current_texts = []
         current_end = segments[0].end
@@ -300,128 +366,169 @@ class OutlineGenerator:
         for seg in segments:
             current_texts.append(seg.text)
             current_end = seg.end
-            
-            # Check if we should start a new section
             duration = current_end - current_start
-            text = " ".join(current_texts)
-            
-            # Start new section if:
-            # 1. Duration exceeds minimum AND
-            # 2. We detect a section boundary (pattern change or pause)
-            if duration >= min_section_duration:
-                # Check for section boundary indicators
-                if (self._detect_section_type(seg.text) != SectionType.OTHER or
-                    duration >= min_section_duration * 2):
-                    sections.append((current_start, current_end, text))
-                    current_start = seg.end
-                    current_texts = []
 
-        # Add remaining content as final section
+            should_create_beat = False
+            if duration >= max_beat_duration:
+                should_create_beat = True
+            elif duration >= min_beat_duration:
+                if (seg.text.endswith("。") or seg.text.endswith(".") or 
+                    seg.text.endswith("？") or seg.text.endswith("?") or
+                    seg.text.endswith("！") or seg.text.endswith("!")):
+                    should_create_beat = True
+
+            if should_create_beat and current_texts:
+                text = " ".join(current_texts)
+                template, variables = self._extract_variables(text, beat_id - 1)
+                
+                beat = Beat(
+                    id=beat_id,
+                    start=current_start,
+                    end=current_end,
+                    summary=self._create_summary(text),
+                    template=template,
+                    original_text=text,
+                    variables=variables,
+                )
+                beats.append(beat)
+                beat_id += 1
+                current_start = current_end
+                current_texts = []
+
         if current_texts:
-            sections.append((current_start, current_end, " ".join(current_texts)))
+            text = " ".join(current_texts)
+            template, variables = self._extract_variables(text, beat_id - 1)
+            beat = Beat(
+                id=beat_id,
+                start=current_start,
+                end=current_end,
+                summary=self._create_summary(text),
+                template=template,
+                original_text=text,
+                variables=variables,
+            )
+            beats.append(beat)
+
+        return beats
+
+    def _group_beats_into_sections(self, beats: list[Beat]) -> list[OutlineSection]:
+        """Group Beats into logical Sections based on content patterns."""
+        if not beats:
+            return []
+
+        sections = []
+        current_beats: list[Beat] = []
+        current_type = SectionType.OTHER
+        
+        for i, beat in enumerate(beats):
+            detected_type = self._detect_section_type(beat.original_text)
+            
+            if detected_type == SectionType.OTHER:
+                position = i / max(len(beats), 1)
+                if i == 0:
+                    detected_type = SectionType.HOOK
+                elif i >= len(beats) - 2:
+                    detected_type = SectionType.CTA
+                elif position < 0.2:
+                    detected_type = SectionType.PROBLEM
+                elif position < 0.35:
+                    detected_type = SectionType.CLAIM
+                elif position < 0.6:
+                    detected_type = SectionType.STEPS
+                elif position < 0.8:
+                    detected_type = SectionType.PROOF
+                else:
+                    detected_type = SectionType.SUMMARY
+
+            if current_beats and detected_type != current_type:
+                section = self._create_section_from_beats(current_beats, current_type, len(sections))
+                sections.append(section)
+                current_beats = []
+            
+            current_type = detected_type
+            current_beats.append(beat)
+
+        if current_beats:
+            section = self._create_section_from_beats(current_beats, current_type, len(sections))
+            sections.append(section)
 
         return sections
 
-    def _get_section_name(self, section_type: SectionType, index: int) -> str:
-        """Get a descriptive name for the section."""
-        names = {
-            SectionType.HOOK: "Opening Hook",
-            SectionType.PROBLEM: "Problem Statement",
-            SectionType.CLAIM: "Main Claim",
-            SectionType.REASON: "Supporting Reason",
-            SectionType.EXAMPLE: "Example/Story",
-            SectionType.SUMMARY: "Summary",
-            SectionType.CTA: "Call to Action",
-            SectionType.TRANSITION: "Transition",
-            SectionType.OTHER: f"Section {index + 1}",
-        }
-        return names.get(section_type, f"Section {index + 1}")
+    def _create_section_from_beats(
+        self, 
+        beats: list[Beat], 
+        section_type: SectionType, 
+        index: int
+    ) -> OutlineSection:
+        """Create a Section from a list of Beats."""
+        all_text = " ".join(b.original_text for b in beats)
+        all_template = " ".join(b.template for b in beats)
+        all_variables = []
+        for b in beats:
+            all_variables.extend(b.variables)
 
-    def _create_summary(self, text: str, max_length: int = 100) -> str:
-        """Create a brief summary of the section text."""
-        # Simple truncation for now - could be enhanced with LLM
-        text = text.strip()
-        if len(text) <= max_length:
-            return text
-        return text[:max_length].rsplit(" ", 1)[0] + "..."
+        return OutlineSection(
+            name=self.SECTION_NAMES_JA.get(section_type, f"セクション {index + 1}"),
+            section_type=section_type,
+            start=beats[0].start,
+            end=beats[-1].end,
+            summary=self._create_summary(all_text, max_length=120),
+            template=all_template,
+            beats=beats,
+            variables=all_variables,
+            original_text=all_text,
+        )
 
     def generate(
         self,
         segments: list[TranscriptSegment],
         video_id: str,
-        min_section_duration: float = 15.0,
+        min_beat_duration: float = 15.0,
+        max_beat_duration: float = 30.0,
     ) -> Outline:
         """
-        Generate an outline from transcript segments.
+        Generate an outline with Beats from transcript segments.
 
         Args:
             segments: List of transcript segments with timestamps
             video_id: Video ID for reference
-            min_section_duration: Minimum duration for each section
+            min_beat_duration: Minimum duration for each Beat (default 15s)
+            max_beat_duration: Maximum duration for each Beat (default 30s)
 
         Returns:
-            Outline object with sections and variables
+            Outline object with Beats, Sections, and variables
         """
-        # Reset state
         self.variables = []
         self.variable_counter = {}
+        self.beats = []
 
-        # Group segments into sections
-        raw_sections = self._group_segments_into_sections(segments, min_section_duration)
-
-        # Process each section
-        outline_sections = []
-        total_duration = segments[-1].end if segments else 0
-
-        for i, (start, end, text) in enumerate(raw_sections):
-            # Detect section type
-            section_type = self._detect_section_type(text)
-            
-            # Override based on position if OTHER
-            if section_type == SectionType.OTHER:
-                position = i / max(len(raw_sections), 1)
-                if i == 0:
-                    section_type = SectionType.HOOK
-                elif i == len(raw_sections) - 1:
-                    section_type = SectionType.CTA
-                elif position < 0.3:
-                    section_type = SectionType.PROBLEM
-                elif position < 0.5:
-                    section_type = SectionType.CLAIM
-                elif position < 0.7:
-                    section_type = SectionType.REASON
-                elif position < 0.9:
-                    section_type = SectionType.EXAMPLE
-                else:
-                    section_type = SectionType.SUMMARY
-
-            # Extract variables and create template
-            template, variables = self._extract_variables(text, i)
-
-            # Create section
-            section = OutlineSection(
-                name=self._get_section_name(section_type, i),
-                section_type=section_type,
-                start=start,
-                end=end,
-                summary=self._create_summary(text),
-                template=template,
-                variables=variables,
-                original_text=text,
+        if not segments:
+            return Outline(
+                video_id=video_id,
+                sections=[],
+                all_beats=[],
+                all_variables=[],
+                metadata={"error": "No segments provided"},
             )
-            outline_sections.append(section)
 
-        # Create metadata
+        beats = self._generate_beats(segments, min_beat_duration, max_beat_duration)
+        self.beats = beats
+
+        sections = self._group_beats_into_sections(beats)
+
+        total_duration = segments[-1].end if segments else 0
         metadata = {
-            "total_duration": f"{total_duration:.1f}s",
-            "section_count": len(outline_sections),
+            "total_duration": f"{total_duration:.1f}秒",
+            "beat_count": len(beats),
+            "section_count": len(sections),
             "variable_count": len(self.variables),
             "generated_at": datetime.now().isoformat(),
         }
 
         return Outline(
             video_id=video_id,
-            sections=outline_sections,
+            sections=sections,
+            all_beats=beats,
             all_variables=self.variables,
             metadata=metadata,
         )
@@ -434,32 +541,31 @@ def save_outline(
     timestamp: Optional[str] = None,
 ) -> dict[str, str]:
     """
-    Save outline to files.
+    Save outline to files in output/videoId/ folder structure.
 
     Args:
         outline: Outline to save
-        output_dir: Directory to save files
-        video_id: Video ID for filename
+        output_dir: Base output directory
+        video_id: Video ID for folder and filename
         timestamp: Optional timestamp for filename
 
     Returns:
         Dictionary mapping format to file path
     """
-    os.makedirs(output_dir, exist_ok=True)
+    video_output_dir = os.path.join(output_dir, video_id)
+    os.makedirs(video_output_dir, exist_ok=True)
     
     ts = timestamp or datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_name = f"outline_{video_id}_{ts}"
+    base_name = f"outline_{ts}"
     
     output_files = {}
 
-    # Save JSON
-    json_path = os.path.join(output_dir, f"{base_name}.json")
+    json_path = os.path.join(video_output_dir, f"{base_name}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         f.write(outline.to_json())
     output_files["json"] = json_path
 
-    # Save Markdown
-    md_path = os.path.join(output_dir, f"{base_name}.md")
+    md_path = os.path.join(video_output_dir, f"{base_name}.md")
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(outline.to_markdown())
     output_files["md"] = md_path

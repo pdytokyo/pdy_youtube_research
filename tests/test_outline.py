@@ -15,8 +15,10 @@ from src.outline_generator import (
     OutlineSection,
     Outline,
     Variable,
+    Beat,
     SectionType,
     save_outline,
+    format_timecode,
 )
 from src.transcriber import TranscriptSegment
 
@@ -123,7 +125,8 @@ class TestOutlineGenerator:
         
         assert outline.video_id == "test123"
         assert len(outline.sections) > 0
-        assert outline.metadata["total_duration"] == "90.0s"
+        assert len(outline.all_beats) > 0
+        assert outline.metadata["total_duration"] == "90.0秒"
 
     def test_generate_assigns_section_types(self):
         """Test that section types are assigned based on content and position."""
@@ -135,7 +138,7 @@ class TestOutlineGenerator:
             TranscriptSegment(id=3, start=40.0, end=60.0, text="チャンネル登録お願いします。"),
         ]
         
-        outline = generator.generate(segments, video_id="test456", min_section_duration=10.0)
+        outline = generator.generate(segments, video_id="test456")
         
         # First section should be HOOK
         assert outline.sections[0].section_type == SectionType.HOOK
@@ -181,6 +184,15 @@ class TestOutline:
 
     def test_to_dict(self):
         """Test conversion to dictionary."""
+        beat = Beat(
+            id=1,
+            start=0.0,
+            end=10.0,
+            summary="Introduction",
+            template="Hello {WHO}!",
+            original_text="Hello 田中さん!",
+            variables=[Variable(name="{WHO}", original_value="田中さん", category="who", section_index=0)],
+        )
         section = OutlineSection(
             name="Opening Hook",
             section_type=SectionType.HOOK,
@@ -188,12 +200,14 @@ class TestOutline:
             end=10.0,
             summary="Introduction",
             template="Hello {WHO}!",
+            beats=[beat],
             variables=[Variable(name="{WHO}", original_value="田中さん", category="who", section_index=0)],
         )
         
         outline = Outline(
             video_id="test123",
             sections=[section],
+            all_beats=[beat],
             all_variables=[Variable(name="{WHO}", original_value="田中さん", category="who", section_index=0)],
             metadata={"total_duration": "10.0s"},
         )
@@ -205,12 +219,14 @@ class TestOutline:
         assert data["sections"][0]["type"] == "hook"
         assert data["sections"][0]["timecode_start"] == "00:00"
         assert len(data["all_variables"]) == 1
+        assert len(data["beats"]) == 1
 
     def test_to_json(self):
         """Test JSON serialization."""
         outline = Outline(
             video_id="test123",
             sections=[],
+            all_beats=[],
             all_variables=[],
             metadata={},
         )
@@ -222,6 +238,14 @@ class TestOutline:
 
     def test_to_markdown(self):
         """Test Markdown generation."""
+        beat = Beat(
+            id=1,
+            start=0.0,
+            end=10.0,
+            summary="Introduction",
+            template="Hello everyone!",
+            original_text="Hello everyone!",
+        )
         section = OutlineSection(
             name="Opening Hook",
             section_type=SectionType.HOOK,
@@ -229,18 +253,20 @@ class TestOutline:
             end=10.0,
             summary="Introduction",
             template="Hello everyone!",
+            beats=[beat],
         )
         
         outline = Outline(
             video_id="test123",
             sections=[section],
+            all_beats=[beat],
             all_variables=[],
             metadata={"total_duration": "10.0s"},
         )
         
         md = outline.to_markdown()
         
-        assert "# Video Outline with Timecodes" in md
+        assert "動画構成アウトライン" in md
         assert "[00:00]" in md
         assert "Opening Hook" in md
         assert "HOOK" in md
@@ -254,6 +280,7 @@ class TestSaveOutline:
         outline = Outline(
             video_id="test123",
             sections=[],
+            all_beats=[],
             all_variables=[],
             metadata={},
         )
@@ -319,6 +346,7 @@ class TestIntegration:
         # Verify outline structure
         assert outline.video_id == "integration_test"
         assert len(outline.sections) > 0
+        assert len(outline.all_beats) > 0
         assert len(outline.all_variables) > 0
         
         # Verify variables were extracted
@@ -334,9 +362,10 @@ class TestIntegration:
                 data = json.load(f)
                 assert data["video_id"] == "integration_test"
                 assert len(data["sections"]) > 0
+                assert len(data["beats"]) > 0
             
             # Verify Markdown
             with open(files["md"], "r", encoding="utf-8") as f:
                 md = f.read()
-                assert "# Video Outline with Timecodes" in md
-                assert "integration_test" in md or "Timecode Index" in md
+                assert "動画構成アウトライン" in md
+                assert "integration_test" in md or "タイムコード" in md
