@@ -2,46 +2,87 @@
 
 YouTubeリサーチ＆台本生成ツール v1
 
-## Features
+SNSマーケ塾生向けのローカルツール。キーワード検索→当たり動画選択→音声DL→Whisper文字起こし→構成/タイムコード/抽象化台本まで一気通貫で実行できます。
 
-### A) Keyword Search Pipeline (PR1)
-- キーワードでYouTube動画を検索
-- 動画詳細・チャンネル情報を取得
-- フィルタ条件: `viewCount >= subscriberCount * 5`
-- 出力: raw.csv, winners.csv, unknown.csv, errors.csv
+## Quick Start (塾生向け最短手順)
 
-### B) Benchmark Video Mode (PR2)
-- 動画ID/URLリストを入力
-- 同じパイプラインで処理
-- 最大10件まで対応
+### 1. リポジトリをクローン
 
-### C) Script Abstraction (PR3)
-- 文字起こしテキストを入力
-- 抽象化構成台本を生成 (JSON/Markdown)
+```bash
+git clone https://github.com/pdytokyo/pdy_youtube_research.git
+cd pdy_youtube_research
+```
 
-## Setup
+### 2. Python仮想環境を作成
 
-### 1. Install Dependencies
+```bash
+python -m venv venv
+source venv/bin/activate  # Mac/Linux
+# Windows: venv\Scripts\activate
+```
+
+### 3. 依存パッケージをインストール
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Set YouTube API Key
+### 4. 外部ツールをインストール (Mac)
 
-Create a `.env` file in the project root:
+```bash
+brew install yt-dlp ffmpeg
+```
+
+### 5. YouTube API キーを設定
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your YouTube Data API key:
+`.env` ファイルを編集して API キーを追加:
 
 ```
 YOUTUBE_API_KEY=your_api_key_here
 ```
 
-Get your API key from: https://console.cloud.google.com/apis/credentials
+API キーの取得: https://console.cloud.google.com/apis/credentials
+
+### 6. Streamlit UIを起動
+
+```bash
+streamlit run app.py
+```
+
+ブラウザで http://localhost:8501 が開きます。
+
+## Features
+
+### Streamlit UI (メイン機能)
+
+1. **Keyword Search** - キーワードでYouTube動画を検索、Winnersを表示
+2. **Analyze Video** - 選択した動画を分析（音声DL→文字起こし→台本生成）
+3. **Direct URL** - URLを直接入力して分析
+
+### 分析パイプライン
+
+1. **音声ダウンロード** - yt-dlpで音声を取得
+2. **Whisper文字起こし** - セグメント（タイムコード付き）で文字起こし
+3. **構成/台本生成** - セクション分割、変数抽出、抽象化テンプレート生成
+
+### A) Keyword Search Pipeline
+- キーワードでYouTube動画を検索
+- 動画詳細・チャンネル情報を取得
+- フィルタ条件: `viewCount >= subscriberCount * 5`
+- 出力: raw.csv, winners.csv, unknown.csv, errors.csv
+
+### B) Benchmark Video Mode
+- 動画ID/URLリストを入力
+- 同じパイプラインで処理
+- 最大10件まで対応
+
+### C) Script Abstraction
+- 文字起こしテキストを入力
+- 抽象化構成台本を生成 (JSON/Markdown)
 
 ## Usage
 
@@ -129,19 +170,54 @@ YouTubeAPIAdapter (interface)
 
 ```
 pdy_youtube_research/
+├── app.py                    # Streamlit UI (メイン)
 ├── src/
-│   ├── __init__.py
-│   ├── cli.py          # CLI entry point
-│   ├── youtube_api.py  # YouTube API client & adapters
-│   ├── pipeline.py     # Data processing pipeline
-│   └── utils.py        # Utility functions
-├── output/             # Generated CSV files
-├── index.html          # Web UI (legacy)
-├── script.js           # Web UI (legacy)
+│   ├── cli.py               # CLI entry point
+│   ├── youtube_api.py       # YouTube API client
+│   ├── pipeline.py          # Video filtering pipeline
+│   ├── audio_downloader.py  # yt-dlp wrapper
+│   ├── transcriber.py       # Whisper transcription
+│   ├── outline_generator.py # Outline with timecodes
+│   ├── script_generator.py  # Script abstraction
+│   └── utils.py             # Utilities
+├── tests/
+│   ├── test_smoke.py        # Smoke tests
+│   ├── test_benchmark.py    # Benchmark tests
+│   ├── test_script.py       # Script tests
+│   └── test_outline.py      # Outline tests
+├── output/                   # Generated files
 ├── requirements.txt
 ├── .env.example
 └── README.md
 ```
+
+## Troubleshooting
+
+### yt-dlp が見つからない
+
+```bash
+brew install yt-dlp
+# または pip install yt-dlp
+```
+
+### ffmpeg が見つからない
+
+```bash
+brew install ffmpeg
+```
+
+### Whisper モデルのダウンロードが遅い
+
+初回起動時にモデルがダウンロードされます。サイドバーで小さいモデル（tiny, base）を選択すると高速です。
+
+### メモリ不足
+
+Whisperモデルを小さいものに変更してください（tiny または base）。
+
+### 動画がダウンロードできない
+
+- 動画が非公開/削除されていないか確認
+- 年齢制限/メンバー限定動画は対応不可
 
 ## License
 
